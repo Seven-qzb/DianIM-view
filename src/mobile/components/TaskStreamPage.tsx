@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   ChevronLeft, ChevronRight, X, 
-  Clock, CheckCircle2, AlertCircle, FileText, Send, Check, User
+  Clock, CheckCircle2, AlertCircle, FileText, Send, Check, User, Plus
 } from 'lucide-react';
 import { SecurityWatermark } from './SecurityWatermark';
 import { motion, AnimatePresence } from 'motion/react';
@@ -29,14 +29,14 @@ interface TaskStreamPageProps {
   onNavigateToGroupChat?: (groupName: string) => void;
 }
 
-// Pre-seeded mock data based directly on uploaded Image 1 and Image 2
+// Pre-seeded mock data based on the 4 task lifecycle states and notification titles
 const DEFAULT_MY_TASKS: TaskStreamItem[] = [
   {
     id: 'task-stream-1',
-    title: '自动化测试任务',
+    title: '有任务到达：自动化测试任务',
     timeHeader: '今天 16:52',
     status: '处理中',
-    initiator: '系统管理员 (自动化流水线)',
+    initiator: '赵力',
     handler: '戚中彪',
     createdAt: '2026-09-08 16:52:00',
     description: '执行点点密信国密SM4端到端加密握手与全链路压力测试，包含高并发消息收发与防截屏水印校验。',
@@ -47,9 +47,23 @@ const DEFAULT_MY_TASKS: TaskStreamItem[] = [
   },
   {
     id: 'task-stream-2',
-    title: '台湾省涉稳重点词库第三轮研判审校',
+    title: '有任务审核：涉密通信链路安全基线专项排查',
+    timeHeader: '今天 14:30',
+    status: '待审核',
+    initiator: '戚中彪',
+    handler: '任云辉',
+    createdAt: '2026-08-27 14:30:15',
+    description: '对骨干节点及密信通讯通道的安全基线开展排查审计，现处理人已完成自测并提交审核。',
+    priority: '急件',
+    secretLevel: '机密',
+    department: '网络安全支队',
+    groupName: '研发部',
+  },
+  {
+    id: 'task-stream-3',
+    title: '有任务到达：台湾省涉稳重点词库第三轮研判审校',
     timeHeader: '今天 09:15',
-    status: '待接收',
+    status: '待处置',
     initiator: '史乐乐',
     handler: '戚中彪',
     createdAt: '2026-08-28 09:15:00',
@@ -60,36 +74,8 @@ const DEFAULT_MY_TASKS: TaskStreamItem[] = [
     groupName: '研发部',
   },
   {
-    id: 'task-stream-3',
-    title: '涉密专网跨节点加密握手协议核查',
-    timeHeader: '今天 08:40',
-    status: '待审核',
-    initiator: '马剑',
-    handler: '戚中彪',
-    createdAt: '2026-08-28 08:40:12',
-    description: '针对专线骨干路由器与密码机之间的SM2证书吊销列表（CRL）及SM4会话密钥协商日志开展合规性安全审计。',
-    priority: '急件',
-    secretLevel: '机密',
-    department: '网络安全支队',
-    groupName: '研发部',
-  },
-  {
     id: 'task-stream-4',
-    title: '涉密终端数字证书与国密SM4密钥轮换自测',
-    timeHeader: '昨天 17:41',
-    status: '待接收',
-    initiator: '任云辉',
-    handler: '戚中彪',
-    createdAt: '2026-09-07 17:41:24',
-    description: '下发新一批客户端终端证书指纹清单，请在移动端完成证书吊销与国密SM4会话重新协商自测试验。',
-    priority: '普通',
-    secretLevel: '商密',
-    department: '专线运维处',
-    groupName: '研发部',
-  },
-  {
-    id: 'task-stream-5',
-    title: '点点密信跨省业务专线联调及加密插件自测',
+    title: '任务已完成：点点密信跨省业务专线联调及加密插件自测',
     timeHeader: '09-06 14:20',
     status: '已完成',
     initiator: '韩浩',
@@ -174,24 +160,90 @@ export const TaskStreamPage: React.FC<TaskStreamPageProps> = ({
   );
   const [selectedItem, setSelectedItem] = useState<TaskStreamItem | null>(null);
   const [toastNotice, setToastNotice] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newHandler, setNewHandler] = useState('戚中彪');
 
   const triggerToast = (msg: string) => {
     setToastNotice(msg);
-    setTimeout(() => setToastNotice(null), 2500);
+    setTimeout(() => setToastNotice(null), 3000);
   };
 
-  // Handle status actions inside detail
-  const handleUpdateItemStatus = (itemId: string, newStatus: TaskStreamItem['status'], successMsg: string) => {
+  const extractRawTitle = (fullTitle: string) => {
+    return fullTitle
+      .replace(/^有任务到达：/, '')
+      .replace(/^有任务审核：/, '')
+      .replace(/^任务已完成：/, '')
+      .replace(/^有任务已完成：/, '')
+      .trim();
+  };
+
+  // 1、创建任务 接收方：处理人 通知标题：有任务到达：+任务标题
+  const handleCreateTask = () => {
+    if (!newTitle.trim()) return;
+    const raw = extractRawTitle(newTitle);
+    const assignedHandler = newHandler.trim() || '戚中彪';
+    const finalTitle = `有任务到达：${raw}`;
+    const newTask: TaskStreamItem = {
+      id: `task-stream-${Date.now()}`,
+      title: finalTitle,
+      timeHeader: '刚刚',
+      status: '待接收',
+      initiator: currentUserName,
+      handler: assignedHandler,
+      createdAt: new Date().toLocaleDateString('zh-CN') + ' ' + new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      description: '新下发加密协同工作任务，请及时接收并闭环办理。',
+      priority: '普通',
+      secretLevel: '机密',
+      department: '技术保障部',
+      groupName: '研发部',
+    };
+    setItems((prev) => [newTask, ...prev]);
+    setIsCreateModalOpen(false);
+    setNewTitle('');
+    triggerToast(`任务已创建！接收方：处理人（${assignedHandler}），通知标题：有任务到达：${raw}`);
+  };
+
+  // 2、提交任务 接收方：创建人 通知标题：有任务审核：+任务标题
+  const handleSubmitTask = (item: TaskStreamItem) => {
+    const raw = extractRawTitle(item.title);
+    const updatedTitle = `有任务审核：${raw}`;
     setItems((prev) =>
-      prev.map((it) => (it.id === itemId ? { ...it, status: newStatus } : it))
+      prev.map((it) => (it.id === item.id ? { ...it, title: updatedTitle, status: '待审核' } : it))
     );
-    if (selectedItem && selectedItem.id === itemId) {
-      setSelectedItem({ ...selectedItem, status: newStatus });
+    if (selectedItem && selectedItem.id === item.id) {
+      setSelectedItem({ ...selectedItem, title: updatedTitle, status: '待审核' });
     }
-    triggerToast(successMsg);
+    triggerToast(`任务已提交！接收方：创建人（${item.initiator}），通知标题：有任务审核：${raw}`);
   };
 
-  // Helper for Status Badge styling (Matching Image 2)
+  // 3、审核驳回 接收方：处理人 通知标题：有任务到达：+任务标题
+  const handleRejectAudit = (item: TaskStreamItem) => {
+    const raw = extractRawTitle(item.title);
+    const updatedTitle = `有任务到达：${raw}`;
+    setItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, title: updatedTitle, status: '待处置' } : it))
+    );
+    if (selectedItem && selectedItem.id === item.id) {
+      setSelectedItem({ ...selectedItem, title: updatedTitle, status: '待处置' });
+    }
+    triggerToast(`已审核驳回！接收方：处理人（${item.handler}），通知标题：有任务到达：${raw}`);
+  };
+
+  // 4、审核通过 接收方：处理人 通知标题：任务已完成：+任务标题
+  const handlePassAudit = (item: TaskStreamItem) => {
+    const raw = extractRawTitle(item.title);
+    const updatedTitle = `任务已完成：${raw}`;
+    setItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, title: updatedTitle, status: '已完成' } : it))
+    );
+    if (selectedItem && selectedItem.id === item.id) {
+      setSelectedItem({ ...selectedItem, title: updatedTitle, status: '已完成' });
+    }
+    triggerToast(`审核通过！接收方：处理人（${item.handler}），通知标题：任务已完成：${raw}`);
+  };
+
+  // Helper for Status Badge styling (Only used for instructions; tasks do NOT display status)
   const renderStatusBadge = (status: TaskStreamItem['status']) => {
     switch (status) {
       case '待接收':
@@ -273,7 +325,18 @@ export const TaskStreamPage: React.FC<TaskStreamPageProps> = ({
         <h1 className="font-bold text-[17px] text-slate-900 tracking-tight">
           {title}
         </h1>
-        <div className="w-8" />
+        {type === 'tasks' ? (
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="text-xs font-semibold bg-[#1677FF] text-white px-2.5 py-1 rounded-lg hover:bg-[#0958D9] active:scale-95 transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>新建</span>
+          </button>
+        ) : (
+          <div className="w-8" />
+        )}
       </header>
 
       {/* Stream List (Directly display the message template stream matching Image 2) */}
@@ -298,12 +361,12 @@ export const TaskStreamPage: React.FC<TaskStreamPageProps> = ({
                 id={`card-${item.id}`}
                 className="bg-white rounded-2xl p-4 shadow-2xs border border-slate-200/70 text-left relative overflow-hidden select-text transition-all hover:shadow-xs"
               >
-                {/* Top Row: Title + Status Pill */}
+                {/* Top Row: Title (No status badge for tasks) */}
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <h2 className="font-bold text-[14.5px] sm:text-[15px] text-slate-900 tracking-tight leading-snug flex-1">
                     {item.title}
                   </h2>
-                  {renderStatusBadge(item.status)}
+                  {type !== 'tasks' && renderStatusBadge(item.status)}
                 </div>
 
                 {/* Middle Row 1: 发起人 & 处理人 (Two columns) */}
@@ -362,7 +425,7 @@ export const TaskStreamPage: React.FC<TaskStreamPageProps> = ({
                   <h3 className="font-bold text-base text-slate-900 truncate max-w-[260px]">
                     {title}详情
                   </h3>
-                  {renderStatusBadge(selectedItem.status)}
+                  {type !== 'tasks' && renderStatusBadge(selectedItem.status)}
                 </div>
                 <button
                   type="button"
@@ -427,17 +490,13 @@ export const TaskStreamPage: React.FC<TaskStreamPageProps> = ({
                     </div>
 
                     <div className="relative pl-3">
-                      <span className={`absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                        selectedItem.status === '待接收' || selectedItem.status === '待审核' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'
-                      }`} />
+                      <span className="absolute -left-[17px] top-1 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white" />
                       <div className="flex items-baseline justify-between">
                         <span className="text-[11px] font-semibold text-slate-800">2. 责任人签收与协同处置</span>
-                        <span className="text-[10px] text-slate-400">
-                          {selectedItem.status === '已完成' ? '已办结' : '流转中'}
-                        </span>
+                        <span className="text-[10px] text-slate-400">实时协同</span>
                       </div>
                       <p className="text-[10px] text-slate-500">
-                        处理人：{selectedItem.handler}（{selectedItem.status}）
+                        处理人：{selectedItem.handler}
                       </p>
                     </div>
                   </div>
@@ -446,56 +505,119 @@ export const TaskStreamPage: React.FC<TaskStreamPageProps> = ({
 
               {/* Modal Actions Footer */}
               <div className="p-3.5 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between gap-2 shrink-0">
-                {selectedItem.status === '待接收' && (
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateItemStatus(selectedItem.id, '处理中', '已确认接收该任务，已进入处理阶段')}
-                    className="flex-1 bg-[#FAAD14] hover:bg-[#D48806] text-white py-2.5 px-4 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>立即接收任务</span>
-                  </button>
-                )}
-
-                {selectedItem.status === '待审核' && (
+                {type === 'tasks' ? (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateItemStatus(selectedItem.id, '待处置', '已驳回，需发起人补充材料')}
-                      className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-2.5 px-3 rounded-xl text-xs font-medium active:scale-95 transition-all cursor-pointer"
-                    >
-                      驳回修改
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateItemStatus(selectedItem.id, '处理中', '审核通过，已进入执行流转')}
-                      className="flex-1 bg-[#1677FF] hover:bg-[#0958D9] text-white py-2.5 px-4 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>审核通过</span>
-                    </button>
+                    {/* 2、提交任务 接收方：创建人 通知标题：有任务审核：+任务标题 */}
+                    {(selectedItem.title.startsWith('有任务到达：') || (!selectedItem.title.startsWith('有任务审核：') && !selectedItem.title.startsWith('任务已完成：'))) && (
+                      <button
+                        type="button"
+                        onClick={() => handleSubmitTask(selectedItem)}
+                        className="flex-1 bg-[#1677FF] hover:bg-[#0958D9] text-white py-2.5 px-4 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>提交任务（接收方：创建人）</span>
+                      </button>
+                    )}
+
+                    {/* 3、审核驳回 / 4、审核通过 */}
+                    {selectedItem.title.startsWith('有任务审核：') && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleRejectAudit(selectedItem)}
+                          className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2.5 px-3 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>审核驳回</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePassAudit(selectedItem)}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>审核通过</span>
+                        </button>
+                      </>
+                    )}
+
+                    {/* 任务已完成 */}
+                    {selectedItem.title.startsWith('任务已完成：') && (
+                      <div className="flex-1 py-2 text-center text-xs text-emerald-600 font-semibold bg-emerald-50 rounded-xl border border-emerald-200">
+                        任务已完成归档
+                      </div>
+                    )}
                   </>
-                )}
+                ) : (
+                  <>
+                    {selectedItem.status === '待接收' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItems((prev) => prev.map((it) => it.id === selectedItem.id ? { ...it, status: '处理中' } : it));
+                          setSelectedItem({ ...selectedItem, status: '处理中' });
+                          triggerToast('已确认接收该指令，已进入处理阶段');
+                        }}
+                        className="flex-1 bg-[#FAAD14] hover:bg-[#D48806] text-white py-2.5 px-4 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>立即接收指令</span>
+                      </button>
+                    )}
 
-                {(selectedItem.status === '待处置' || selectedItem.status === '处理中') && (
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateItemStatus(selectedItem.id, '已完成', '已完成处置并归档')}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>标记为已完成办结</span>
-                  </button>
-                )}
+                    {selectedItem.status === '待审核' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItems((prev) => prev.map((it) => it.id === selectedItem.id ? { ...it, status: '待处置' } : it));
+                            setSelectedItem({ ...selectedItem, status: '待处置' });
+                            triggerToast('已驳回，需发起人补充材料');
+                          }}
+                          className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-2.5 px-3 rounded-xl text-xs font-medium active:scale-95 transition-all cursor-pointer"
+                        >
+                          驳回修改
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItems((prev) => prev.map((it) => it.id === selectedItem.id ? { ...it, status: '处理中' } : it));
+                            setSelectedItem({ ...selectedItem, status: '处理中' });
+                            triggerToast('审核通过，已进入执行流转');
+                          }}
+                          className="flex-1 bg-[#1677FF] hover:bg-[#0958D9] text-white py-2.5 px-4 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>审核通过</span>
+                        </button>
+                      </>
+                    )}
 
-                {selectedItem.status === '已完成' && (
-                  <button
-                    type="button"
-                    onClick={() => triggerToast('归档报告已在国密区块链完成留存')}
-                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 px-4 rounded-xl text-xs font-medium cursor-pointer"
-                  >
-                    已办结归档（点击核对存证）
-                  </button>
+                    {(selectedItem.status === '待处置' || selectedItem.status === '处理中') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItems((prev) => prev.map((it) => it.id === selectedItem.id ? { ...it, status: '已完成' } : it));
+                          setSelectedItem({ ...selectedItem, status: '已完成' });
+                          triggerToast('已完成处置并归档');
+                        }}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>标记为已完成办结</span>
+                      </button>
+                    )}
+
+                    {selectedItem.status === '已完成' && (
+                      <button
+                        type="button"
+                        onClick={() => triggerToast('归档报告已在国密区块链完成留存')}
+                        className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 px-4 rounded-xl text-xs font-medium cursor-pointer"
+                      >
+                        已办结归档（点击核对存证）
+                      </button>
+                    )}
+                  </>
                 )}
 
                 {/* Optional navigate to group chat */}
@@ -512,6 +634,86 @@ export const TaskStreamPage: React.FC<TaskStreamPageProps> = ({
                     前往群聊
                   </button>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Task Modal for Mobile */}
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <div
+            className="absolute inset-0 z-70 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setIsCreateModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl w-full max-w-sm p-4 shadow-2xl border border-slate-100 space-y-3.5"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <h3 className="font-bold text-sm text-slate-900">新建协同任务</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-500 font-medium mb-1">任务标题</label>
+                  <input
+                    type="text"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    placeholder="输入任务标题，如：跨省专网加密链路联调"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 font-medium mb-1">接收方（处理人）</label>
+                  <select
+                    value={newHandler}
+                    onChange={(e) => setNewHandler(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="戚中彪">戚中彪</option>
+                    <option value="任云辉">任云辉</option>
+                    <option value="史乐乐">史乐乐</option>
+                    <option value="韩浩">韩浩</option>
+                    <option value="马剑">马剑</option>
+                    <option value="赵力">赵力</option>
+                  </select>
+                </div>
+
+                <div className="p-2.5 bg-blue-50 rounded-xl text-[11px] text-blue-700 leading-relaxed">
+                  通知标题规则：创建后将向处理人发送通知<strong>「有任务到达：{newTitle || '任务标题'}」</strong>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateTask}
+                  disabled={!newTitle.trim()}
+                  className="px-3.5 py-1.5 text-xs font-semibold bg-[#1677FF] hover:bg-[#0958D9] disabled:opacity-50 text-white rounded-lg cursor-pointer"
+                >
+                  确认创建
+                </button>
               </div>
             </motion.div>
           </div>

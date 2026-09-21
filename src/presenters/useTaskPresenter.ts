@@ -7,11 +7,11 @@
 import { useCallback } from 'react';
 import { unifiedStore } from '../models/stores/UnifiedStore';
 import { TaskDirective, TaskItem, InstructionItem } from '../models/entities/task';
-import { syncBridge } from '../services/terminalSyncBridge';
+import { syncBridge, TerminalSource } from '../services/terminalSyncBridge';
 
 export function useTaskPresenter() {
   // 1. 实名签署公文/指令
-  const signInstruction = useCallback((source: 'pc' | 'app', instructionId: string, operatorName: string) => {
+  const signInstruction = useCallback((source: TerminalSource, instructionId: string, operatorName: string) => {
     unifiedStore.setState((prev) => {
       const nextInstructions = prev.instructions.map((inst) => {
         if (inst.id === instructionId || inst.code === instructionId) {
@@ -40,7 +40,7 @@ export function useTaskPresenter() {
 
   // 2. 更新指令处置状态
   const updateDirectiveStatus = useCallback(
-    (source: 'pc' | 'app', directiveId: string, status: 'pending' | 'in_progress' | 'completed') => {
+    (source: TerminalSource, directiveId: string, status: 'pending' | 'in_progress' | 'completed') => {
       unifiedStore.setState((prev) => {
         const nextSessions = prev.sessions.map((s) => {
           if (s.directives) {

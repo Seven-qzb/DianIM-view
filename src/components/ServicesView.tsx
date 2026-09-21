@@ -28,9 +28,15 @@ import {
   Sparkles,
   RefreshCw,
   ExternalLink,
+  ArrowRight,
 } from 'lucide-react';
 import { TaskDirective } from '../types/chat';
 import { PropagationH5Modal } from './PropagationH5Modal';
+
+const CURRENT_USER = {
+  id: 'u_current',
+  name: '戚中彪',
+};
 
 export interface TaskAttachment {
   id: string;
@@ -490,7 +496,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
 
   // Task state
   const [tasks, setTasks] = useState<MyTaskCardItem[]>(INITIAL_MY_TASKS);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pending_process' | 'pending_receive' | 'pending_audit' | 'completed' | 'canceled'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'assigned_to_me' | 'created_by_me'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTask, setSelectedTask] = useState<MyTaskCardItem | null>(null);
 
@@ -509,14 +515,15 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
     }, 3000);
   };
 
-  // Dynamic stats calculation for tasks
-  const stats = {
+  // Role stats calculation for tasks (No status categories)
+  const roleStats = {
     total: tasks.length,
-    pendingReceive: tasks.filter((t) => t.status === 'pending_receive').length,
-    pendingProcess: tasks.filter((t) => t.status === 'pending_process').length,
-    pendingAudit: tasks.filter((t) => t.status === 'pending_audit').length,
-    completed: tasks.filter((t) => t.status === 'completed').length,
-    canceled: tasks.filter((t) => t.status === 'canceled').length,
+    assignedToMe: tasks.filter(
+      (t) => t.assignee === CURRENT_USER.name || t.assignee === '戚中彪' || t.assignee === '我'
+    ).length,
+    createdByMe: tasks.filter(
+      (t) => t.creator === CURRENT_USER.name || t.creator === '戚中彪' || t.creator === '我'
+    ).length,
   };
 
   // Propagation topics stats
@@ -545,52 +552,21 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
     return 'border-sky-300 text-sky-600 bg-sky-50/40';
   };
 
-  // Status dot & text helper matching the 5 required types
-  const getStatusDisplay = (status: MyTaskCardItem['status']) => {
-    switch (status) {
-      case 'pending_receive':
-        return {
-          dotBg: 'bg-[#ff9500]',
-          text: 'text-[#ff9500]',
-          label: '待接收',
-        };
-      case 'pending_process':
-        return {
-          dotBg: 'bg-[#2979ff]',
-          text: 'text-[#2979ff]',
-          label: '待处理',
-        };
-      case 'pending_audit':
-        return {
-          dotBg: 'bg-[#ef4444]',
-          text: 'text-[#ef4444]',
-          label: '待审核',
-        };
-      case 'completed':
-        return {
-          dotBg: 'bg-[#34c759]',
-          text: 'text-[#34c759]',
-          label: '已完成',
-        };
-      case 'canceled':
-      default:
-        return {
-          dotBg: 'bg-[#8e8e93]',
-          text: 'text-[#8e8e93]',
-          label: '已撤销',
-        };
-    }
-  };
-
-  // Filtered tasks with search query
+  // Filtered tasks with search query (Filtered by role: all | assigned_to_me | created_by_me)
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      const matchFilter = activeFilter === 'all' || t.status === activeFilter;
+      let matchFilter = true;
+      if (activeFilter === 'assigned_to_me') {
+        matchFilter = t.assignee === CURRENT_USER.name || t.assignee === '戚中彪' || t.assignee === '我';
+      } else if (activeFilter === 'created_by_me') {
+        matchFilter = t.creator === CURRENT_USER.name || t.creator === '戚中彪' || t.creator === '我';
+      }
       const matchSearch =
         !searchQuery.trim() ||
         t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.creator.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.assignee.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.groupName.toLowerCase().includes(searchQuery.toLowerCase());
       return matchFilter && matchSearch;
     });
@@ -651,13 +627,10 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
     setTaskAttachments((prev) => prev.filter((a) => a.id !== attId));
   };
 
-  // Submit task completion
+  // 2、提交任务 接收方：创建人 通知标题：有任务审核：+任务标题
   const handleSubmitTask = () => {
     if (!selectedTask) return;
-    if (!completionText.trim() && taskAttachments.length === 0) {
-      showToast('请填写完成描述或上传相关附件');
-      return;
-    }
+    const rawTitle = selectedTask.title.replace(/^(有任务到达：|有任务审核：|任务已完成：)/, '');
 
     setTasks((prev) =>
       prev.map((t) =>
@@ -665,7 +638,6 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
           ? {
               ...t,
               status: 'pending_audit',
-              statusLabel: '待审核',
               completedDesc: completionText,
               attachments: taskAttachments,
             }
@@ -678,18 +650,73 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
         ? {
             ...prev,
             status: 'pending_audit',
-            statusLabel: '待审核',
             completedDesc: completionText,
             attachments: taskAttachments,
           }
         : null
     );
 
-    showToast('任务已成功提交，已转入待审核状态！');
+    showToast(`有任务审核：${rawTitle}（接收方：${selectedTask.creator}）`);
+  };
+
+  // 3、审核驳回 接收方：处理人 通知标题：有任务到达：+任务标题
+  const handleRejectTask = () => {
+    if (!selectedTask) return;
+    const rawTitle = selectedTask.title.replace(/^(有任务到达：|有任务审核：|任务已完成：)/, '');
+
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === selectedTask.id
+          ? {
+              ...t,
+              status: 'pending_process',
+            }
+          : t
+      )
+    );
+
+    setSelectedTask((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: 'pending_process',
+          }
+        : null
+    );
+
+    showToast(`有任务到达：${rawTitle}（接收方：${selectedTask.assignee}）`);
+  };
+
+  // 4、审核通过 接收方：处理人 通知标题：任务已完成：+任务标题
+  const handlePassTask = () => {
+    if (!selectedTask) return;
+    const rawTitle = selectedTask.title.replace(/^(有任务到达：|有任务审核：|任务已完成：)/, '');
+
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === selectedTask.id
+          ? {
+              ...t,
+              status: 'completed',
+            }
+          : t
+      )
+    );
+
+    setSelectedTask((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: 'completed',
+          }
+        : null
+    );
+
+    showToast(`任务已完成：${rawTitle}（接收方：${selectedTask.assignee}）`);
   };
 
   // Quick navigation to My Tasks tab
-  const handleOpenMyTasks = (filterKey: typeof activeFilter = 'pending_process') => {
+  const handleOpenMyTasks = (filterKey: typeof activeFilter = 'all') => {
     setActiveFilter(filterKey);
     setCurrentView('my_tasks');
     setSelectedTask(null);
@@ -995,30 +1022,25 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
               </div>
             </div>
 
-            {/* Top Status Filter Bar: 全部、待接收、待处理、待审核、已完成、已撤销 + 对应数量 */}
+            {/* Top Filter Bar: 全部任务、待我处理、我发起的 (不展示任务状态) */}
             <div className="px-6 py-2.5 flex items-center justify-between bg-white border-b border-gray-200/70">
               <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar py-0.5">
-                {/* Status Tabs with exact counts */}
                 {[
-                  { key: 'all', label: '全部', count: stats.total, dotColor: 'bg-blue-600' },
-                  { key: 'pending_receive', label: '待接收', count: stats.pendingReceive, dotColor: 'bg-[#ff9500]' },
-                  { key: 'pending_process', label: '待处理', count: stats.pendingProcess, dotColor: 'bg-[#2979ff]' },
-                  { key: 'pending_audit', label: '待审核', count: stats.pendingAudit, dotColor: 'bg-[#ef4444]' },
-                  { key: 'completed', label: '已完成', count: stats.completed, dotColor: 'bg-[#34c759]' },
-                  { key: 'canceled', label: '已撤销', count: stats.canceled, dotColor: 'bg-[#8e8e93]' },
+                  { key: 'all', label: '全部任务', count: roleStats.total },
+                  { key: 'assigned_to_me', label: '待我处理', count: roleStats.assignedToMe },
+                  { key: 'created_by_me', label: '我发起的', count: roleStats.createdByMe },
                 ].map((tab) => {
                   const isActive = activeFilter === tab.key;
                   return (
                     <button
                       key={tab.key}
                       onClick={() => setActiveFilter(tab.key as any)}
-                      className={`px-3 py-1 text-xs rounded-md font-medium transition-all cursor-pointer border flex items-center gap-1.5 shrink-0 ${
+                      className={`px-3.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer border flex items-center gap-1.5 shrink-0 ${
                         isActive
                           ? 'bg-blue-50/90 border-blue-400 text-blue-600 font-semibold shadow-2xs'
                           : 'bg-white border-gray-200/80 text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full ${tab.dotColor}`} />
                       <span>{tab.label}</span>
                       <span
                         className={`text-[11px] font-sans px-1.5 py-0.2 rounded-full ${
@@ -1042,7 +1064,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="搜索任务/提出人/群组..."
+                  placeholder="搜索任务/提出人/处理人/群组..."
                   className="w-full pl-8 pr-7 py-1 text-xs bg-slate-50/80 hover:bg-white border border-gray-200/90 rounded-md placeholder-gray-400 text-gray-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all shadow-2xs"
                 />
                 {searchQuery && (
@@ -1057,14 +1079,14 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
               </div>
             </div>
 
-            {/* Table Container */}
+            {/* Table Container (No status column) */}
             <div className="flex-1 overflow-y-auto bg-white custom-scrollbar flex flex-col">
               {/* Sticky Table Header */}
               <div className="px-6 py-2.5 bg-[#fafbfd] border-b border-gray-200/80 text-[12px] font-bold text-gray-700 select-none flex items-center shrink-0 sticky top-0 z-10 shadow-2xs">
-                <div className="w-[85px] shrink-0 pl-1">状态</div>
-                <div className="w-[160px] shrink-0">所属群组</div>
-                <div className="flex-1 min-w-[265px] pr-4">任务标题与内容</div>
+                <div className="w-[180px] shrink-0 pl-1">所属群组</div>
+                <div className="flex-1 min-w-[280px] pr-4">任务标题与内容</div>
                 <div className="w-[110px] shrink-0">任务提出人</div>
+                <div className="w-[110px] shrink-0">责任处理人</div>
                 <div className="w-[135px] shrink-0">要求完成时间</div>
                 <div className="w-[105px] shrink-0 text-right pr-1">创建时间</div>
               </div>
@@ -1079,7 +1101,6 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                 <div className="divide-y divide-gray-100 flex-1">
                   {filteredTasks.map((task) => {
                     const isSelected = selectedTask?.id === task.id;
-                    const statusInfo = getStatusDisplay(task.status);
                     const groupBadgeStyle = getGroupBadgeStyle(task.groupName);
 
                     return (
@@ -1092,16 +1113,8 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                             : 'bg-white hover:bg-[#f8fafc]'
                         }`}
                       >
-                        {/* 状态 (Status with dot indicator) */}
-                        <div className="w-[85px] shrink-0 flex items-center gap-1.5 font-medium pl-1">
-                          <span className={`w-2 h-2 rounded-full ${statusInfo.dotBg} shrink-0`} />
-                          <span className={`${statusInfo.text} font-medium text-xs`}>
-                            {statusInfo.label}
-                          </span>
-                        </div>
-
-                        {/* 所属群组 (Group Name Tag with colored outline pill) */}
-                        <div className="w-[160px] shrink-0 pr-3">
+                        {/* 所属群组 (Group Name Tag) */}
+                        <div className="w-[180px] shrink-0 pr-3 pl-1">
                           <span
                             className={`inline-block px-2 py-0.5 rounded border text-[11px] font-normal truncate max-w-full ${groupBadgeStyle}`}
                             title={task.groupName}
@@ -1110,9 +1123,9 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                           </span>
                         </div>
 
-                        {/* 任务标题与内容详情 (Title and description detail with +25px width) */}
-                        <div className="flex-1 min-w-[265px] flex items-baseline gap-2.5 pr-4 overflow-hidden">
-                          <span className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors shrink-0 max-w-[285px] truncate text-xs">
+                        {/* 任务标题与内容详情 */}
+                        <div className="flex-1 min-w-[280px] flex items-baseline gap-2.5 pr-4 overflow-hidden">
+                          <span className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors shrink-0 max-w-[290px] truncate text-xs">
                             {task.title}
                           </span>
                           <span className="text-gray-500 truncate text-[11px] font-normal">
@@ -1120,12 +1133,17 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                           </span>
                         </div>
 
-                        {/* 任务提出人 (Creator - Real Chinese name) */}
+                        {/* 任务提出人 */}
                         <div className="w-[110px] shrink-0 text-gray-700 font-medium truncate pr-2 text-xs">
                           {task.creator}
                         </div>
 
-                        {/* 要求完成时间 (Required completion time formatted to MM-DD HH:mm for current year) */}
+                        {/* 责任处理人 */}
+                        <div className="w-[110px] shrink-0 text-gray-700 font-medium truncate pr-2 text-xs">
+                          {task.assignee}
+                        </div>
+
+                        {/* 要求完成时间 */}
                         <div className="w-[135px] shrink-0 text-gray-600 text-[11px] truncate pr-2 flex items-center gap-1 font-mono">
                           <Clock className="w-3 h-3 text-gray-400 shrink-0" />
                           <span className="truncate">
@@ -1133,7 +1151,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                           </span>
                         </div>
 
-                        {/* 创建时间 (Creation Time formatted to MM-DD HH:mm for current year) */}
+                        {/* 创建时间 */}
                         <div className="w-[105px] shrink-0 text-gray-400 text-[11px] text-right pr-1 font-mono">
                           {formatCompactDateTime(task.createdAt)}
                         </div>
@@ -1164,7 +1182,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
             </div>
           </div>
 
-          {/* Right Column: Task Detail Drawer matching Group Settings (`群组设置`) style with Light Backdrop */}
+          {/* Right Column: Task Detail Drawer (No status display) */}
           <AnimatePresence>
             {selectedTask && (
               <>
@@ -1198,7 +1216,6 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                       <div className="p-3 pb-2.5 border-b border-gray-100 bg-white flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-bold text-gray-800">任务详情</span>
-                          <span className="text-[11px] text-gray-400">({selectedTask.statusLabel})</span>
                         </div>
                         <button
                           onClick={() => setSelectedTask(null)}
@@ -1209,15 +1226,12 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                         </button>
                       </div>
 
-                      {/* Section 1: Task Title & Status Stamp */}
+                      {/* Section 1: Task Title */}
                       <div className="p-3 bg-white border-b border-gray-100 space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="text-xs font-bold text-gray-900 leading-snug">
                             {selectedTask.title}
                           </h3>
-                          <div className="shrink-0">
-                            <StatusStamp status={selectedTask.status} text={selectedTask.statusLabel} size="sm" />
-                          </div>
                         </div>
 
                         {selectedTask.requireTime && (
@@ -1269,98 +1283,134 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                       </div>
 
                       {/* Section 4: 完成描述 */}
-                      <div className="p-3 bg-white border-b border-gray-100 space-y-1.5">
-                        <div className="text-[11px] font-bold text-gray-700">完成描述</div>
-                        <textarea
-                          rows={3}
-                          value={completionText}
-                          onChange={(e) => setCompletionText(e.target.value)}
-                          placeholder="请输入完成描述..."
-                          className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-lg p-2.5 text-[11px] text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition-all resize-none"
-                        />
-                      </div>
+                      {selectedTask.status !== 'completed' && (
+                        <div className="p-3 bg-white border-b border-gray-100 space-y-1.5">
+                          <div className="text-[11px] font-bold text-gray-700">完成描述</div>
+                          <textarea
+                            rows={3}
+                            value={completionText}
+                            onChange={(e) => setCompletionText(e.target.value)}
+                            placeholder="请输入完成描述..."
+                            className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-lg p-2.5 text-[11px] text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition-all resize-none"
+                          />
+                        </div>
+                      )}
 
                       {/* Section 5: 上传附件 (File & Image upload) */}
-                      <div className="p-3 bg-white border-b border-gray-100 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-gray-700">任务附件</span>
-                          <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="text-[11px] text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <Plus className="w-3 h-3 stroke-[2.5]" />
-                            <span>添加</span>
-                          </button>
-                        </div>
-
-                        {/* Attachment List */}
-                        {taskAttachments.length === 0 ? (
-                          <div
-                            onClick={() => fileInputRef.current?.click()}
-                            className="border border-dashed border-gray-200 rounded-lg p-3 text-center text-[10px] text-gray-400 hover:border-blue-300 hover:bg-blue-50/20 transition-all cursor-pointer"
-                          >
-                            点击或拖拽文件/图片上传
+                      {selectedTask.status !== 'completed' && (
+                        <div className="p-3 bg-white border-b border-gray-100 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-gray-700">任务附件</span>
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="text-[11px] text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <Plus className="w-3 h-3 stroke-[2.5]" />
+                              <span>添加</span>
+                            </button>
                           </div>
-                        ) : (
-                          <div className="space-y-1.5">
-                            {taskAttachments.map((att) => (
-                              <div
-                                key={att.id}
-                                className="flex items-center justify-between p-1.5 rounded-lg bg-gray-50 border border-gray-200/70 text-xs text-gray-700 group hover:border-blue-200 transition-all"
-                              >
-                                <div className="flex items-center gap-1.5 min-w-0 pr-1">
-                                  {att.type === 'image' && att.url ? (
-                                    <img
-                                      src={att.url}
-                                      alt={att.name}
-                                      className="w-6 h-6 rounded object-cover border border-gray-200 shrink-0"
-                                    />
-                                  ) : att.type === 'image' ? (
-                                    <div className="w-6 h-6 rounded bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                                      <ImageIcon className="w-3.5 h-3.5" />
-                                    </div>
-                                  ) : (
-                                    <div className="w-6 h-6 rounded bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                                      <FileText className="w-3.5 h-3.5" />
-                                    </div>
-                                  )}
-                                  <div className="min-w-0">
-                                    <div
-                                      className="text-[11px] font-medium text-gray-800 truncate max-w-[170px]"
-                                      title={att.name}
-                                    >
-                                      {att.name}
-                                    </div>
-                                    <div className="text-[9px] text-gray-400">{att.size}</div>
-                                  </div>
-                                </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveAttachment(att.id)}
-                                  className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-gray-200/60 transition-colors cursor-pointer"
-                                  title="删除附件"
+                          {/* Attachment List */}
+                          {taskAttachments.length === 0 ? (
+                            <div
+                              onClick={() => fileInputRef.current?.click()}
+                              className="border border-dashed border-gray-200 rounded-lg p-3 text-center text-[10px] text-gray-400 hover:border-blue-300 hover:bg-blue-50/20 transition-all cursor-pointer"
+                            >
+                              点击或拖拽文件/图片上传
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {taskAttachments.map((att) => (
+                                <div
+                                  key={att.id}
+                                  className="flex items-center justify-between p-1.5 rounded-lg bg-gray-50 border border-gray-200/70 text-xs text-gray-700 group hover:border-blue-200 transition-all"
                                 >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                                  <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                                    {att.type === 'image' && att.url ? (
+                                      <img
+                                        src={att.url}
+                                        alt={att.name}
+                                        className="w-6 h-6 rounded object-cover border border-gray-200 shrink-0"
+                                      />
+                                    ) : att.type === 'image' ? (
+                                      <div className="w-6 h-6 rounded bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                        <ImageIcon className="w-3.5 h-3.5" />
+                                      </div>
+                                    ) : (
+                                      <div className="w-6 h-6 rounded bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                                        <FileText className="w-3.5 h-3.5" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <div
+                                        className="text-[11px] font-medium text-gray-800 truncate max-w-[170px]"
+                                        title={att.name}
+                                      >
+                                        {att.name}
+                                      </div>
+                                      <div className="text-[9px] text-gray-400">{att.size}</div>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveAttachment(att.id)}
+                                    className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-gray-200/60 transition-colors cursor-pointer"
+                                    title="删除附件"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Bottom Submit Action */}
-                    <div className="p-3 bg-white border-t border-gray-100 shrink-0">
-                      <button
-                        type="button"
-                        onClick={handleSubmitTask}
-                        className="w-full py-2 bg-[#2979ff] hover:bg-blue-600 active:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>提交任务</span>
-                      </button>
+                    {/* Bottom Lifecycle Actions */}
+                    <div className="p-3 bg-white border-t border-gray-100 shrink-0 space-y-2">
+                      {/* 2、提交任务 接收方：创建人 通知标题：有任务审核：+任务标题 */}
+                      {(selectedTask.status === 'pending_process' || selectedTask.status === 'pending_receive') && (
+                        <button
+                          type="button"
+                          onClick={handleSubmitTask}
+                          className="w-full py-2 bg-[#2979ff] hover:bg-blue-600 active:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <ArrowRight className="w-3.5 h-3.5" />
+                          <span>提交任务（接收方：创建人）</span>
+                        </button>
+                      )}
+
+                      {/* 3、审核驳回 / 4、审核通过 接收方：处理人 */}
+                      {selectedTask.status === 'pending_audit' && (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={handleRejectTask}
+                            className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>审核驳回（接收方：处理人）</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handlePassTask}
+                            className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>审核通过（接收方：处理人）</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {selectedTask.status === 'completed' && (
+                        <div className="py-2.5 text-center text-xs text-emerald-600 font-semibold bg-emerald-50 rounded-lg border border-emerald-100 flex items-center justify-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>任务已完成并归档</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </motion.div>

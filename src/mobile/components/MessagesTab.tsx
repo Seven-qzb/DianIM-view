@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChatConversation } from '../types';
 import { 
-  Search, Scan, Plus, Users, BellOff, Pin, 
+  Search, Plus, Users, BellOff, Pin, 
   MessageSquarePlus, X, ClipboardCheck, Megaphone 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -98,7 +98,6 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showScanModal, setShowScanModal] = useState(false);
   const [newChatName, setNewChatName] = useState('');
   const [newChatIsGroup, setNewChatIsGroup] = useState(true);
   const [selectedMembers, setSelectedMembers] = useState<string[]>(['戚中彪', '史乐乐', '陈工', '马言言']);
@@ -147,50 +146,40 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
               正式版
             </span>
           </div>
-
-          {/* Right Action Icons: Scan and Add/New Chat */}
-          <div className="flex items-center gap-2 text-slate-700">
-            <button
-              id="scan-code-btn"
-              type="button"
-              onClick={() => setShowScanModal(true)}
-              className="p-1.5 text-slate-700 hover:text-[#0058BD] hover:bg-slate-100 transition-colors rounded-lg active:scale-95"
-              title="扫一扫"
-            >
-              <Scan className="w-5 h-5 stroke-[2]" />
-            </button>
-
-            <button
-              id="create-new-chat-btn"
-              type="button"
-              onClick={() => setShowCreateModal(true)}
-              className="w-6 h-6 rounded-full bg-[#0058BD] text-white flex items-center justify-center hover:bg-[#004CB3] transition-all shadow-xs active:scale-95"
-              title="发起会话"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-            </button>
-          </div>
         </div>
 
-        {/* Search Bar Matching Figure 4: subtle grey rounded bar with Search placeholder */}
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            id="conversation-search-input"
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索"
-            className="w-full bg-[#ECEFF2] rounded-xl py-2 pl-9 pr-8 text-xs text-slate-900 placeholder:text-slate-400 outline-none border border-transparent focus:border-[#0058BD] focus:bg-white transition-all font-normal"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+        {/* Search Bar & Action on the same line */}
+        <div className="flex items-center gap-2 w-full">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              id="conversation-search-input"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索"
+              className="w-full bg-[#ECEFF2] rounded-xl py-2 pl-9 pr-8 text-xs text-slate-900 placeholder:text-slate-400 outline-none border border-transparent focus:border-[#0058BD] focus:bg-white transition-all font-normal"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <button
+            id="create-new-chat-btn"
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="h-8 px-2.5 rounded-xl bg-[#0058BD] hover:bg-[#004CB3] text-white flex items-center justify-center gap-1 text-xs font-semibold shrink-0 transition-all shadow-xs active:scale-95 cursor-pointer"
+            title="发起会话"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span className="text-[12px] font-medium">发起</span>
+          </button>
         </div>
       </header>
 
@@ -488,38 +477,6 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
                   </button>
                 </div>
               </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* QR Code Scan Modal */}
-      <AnimatePresence>
-        {showScanModal && (
-          <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl max-w-[340px] w-full p-6 shadow-2xl border border-slate-200 text-center"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0058BD] flex items-center justify-center mx-auto mb-3">
-                <Scan className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900 mb-1">扫描入群二维码</h3>
-              <p className="text-xs text-slate-500 mb-4">对准机构安全入群二维码或密信名片即可自动识别添加</p>
-              
-              <div className="w-48 h-48 mx-auto rounded-xl border-2 border-dashed border-[#0058BD] flex items-center justify-center bg-slate-50 relative overflow-hidden mb-4">
-                <div className="w-full h-0.5 bg-[#0058BD] absolute top-1/2 left-0 right-0 animate-pulse"></div>
-                <span className="text-xs text-slate-400">摄像头取景中...</span>
-              </div>
-
-              <button
-                onClick={() => setShowScanModal(false)}
-                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
-              >
-                关闭
-              </button>
             </motion.div>
           </div>
         )}

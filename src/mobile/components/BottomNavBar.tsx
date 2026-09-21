@@ -1,7 +1,7 @@
 import React from 'react';
-import { MessageSquare, LayoutGrid, UserCircle } from 'lucide-react';
+import { MessageSquare, Users, LayoutGrid, UserCircle } from 'lucide-react';
 
-export type AppTab = 'messages' | 'services' | 'profile';
+export type AppTab = 'messages' | 'contacts' | 'services' | 'profile';
 
 interface BottomNavBarProps {
   currentTab: AppTab;
@@ -23,7 +23,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         id="tab-messages-btn"
         type="button"
         onClick={() => onTabChange('messages')}
-        className={`flex flex-col items-center justify-center w-1/3 py-1 relative transition-transform active:scale-95 cursor-pointer ${
+        className={`flex flex-col items-center justify-center w-1/4 py-1 relative transition-transform active:scale-95 cursor-pointer ${
           currentTab === 'messages' ? 'text-[#1677FF]' : 'text-slate-500 hover:text-slate-900'
         }`}
       >
@@ -49,12 +49,35 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         </span>
       </button>
 
+      {/* 联系人 (Contacts) Tab */}
+      <button
+        id="tab-contacts-btn"
+        type="button"
+        onClick={() => onTabChange('contacts')}
+        className={`flex flex-col items-center justify-center w-1/4 py-1 relative transition-transform active:scale-95 cursor-pointer ${
+          currentTab === 'contacts' ? 'text-[#1677FF]' : 'text-slate-500 hover:text-slate-900'
+        }`}
+      >
+        <div className="relative">
+          <Users
+            className={`w-5 h-5 transition-all ${
+              currentTab === 'contacts' ? 'stroke-[2.2]' : 'stroke-[1.75]'
+            }`}
+          />
+        </div>
+        <span className={`text-[11px] mt-0.5 tracking-tight ${
+          currentTab === 'contacts' ? 'font-semibold text-[#1677FF]' : 'font-medium text-slate-500'
+        }`}>
+          联系人
+        </span>
+      </button>
+
       {/* 服务 (Services) Tab */}
       <button
         id="tab-services-btn"
         type="button"
         onClick={() => onTabChange('services')}
-        className={`flex flex-col items-center justify-center w-1/3 py-1 relative transition-transform active:scale-95 cursor-pointer ${
+        className={`flex flex-col items-center justify-center w-1/4 py-1 relative transition-transform active:scale-95 cursor-pointer ${
           currentTab === 'services' ? 'text-[#1677FF]' : 'text-slate-500 hover:text-slate-900'
         }`}
       >
@@ -80,7 +103,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         id="tab-profile-btn"
         type="button"
         onClick={() => onTabChange('profile')}
-        className={`flex flex-col items-center justify-center w-1/3 py-1 relative transition-transform active:scale-95 cursor-pointer ${
+        className={`flex flex-col items-center justify-center w-1/4 py-1 relative transition-transform active:scale-95 cursor-pointer ${
           currentTab === 'profile' ? 'text-[#1677FF]' : 'text-slate-500 hover:text-slate-900'
         }`}
       >

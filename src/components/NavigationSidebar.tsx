@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, LayoutGrid, Settings, ChevronDown, Layers, ArrowLeft } from 'lucide-react';
+import { MessageSquare, LayoutGrid, Settings, ChevronDown, Layers, ArrowLeft, Users } from 'lucide-react';
 import { MainNavTab } from '../types/chat';
 import { CURRENT_USER } from '../data/mockData';
 
@@ -77,6 +77,24 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
               </span>
             )}
+          </button>
+
+          {/* Contacts Tab */}
+          <button
+            id="nav-tab-contacts"
+            onClick={() => onTabChange('contacts')}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              activeTab === 'contacts'
+                ? 'bg-white text-gray-800 shadow-sm font-semibold'
+                : 'text-[#475569] hover:bg-white/60 hover:text-[#1e293b]'
+            }`}
+          >
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+              activeTab === 'contacts' ? 'bg-[#2979ff] text-white' : 'bg-transparent text-gray-500'
+            }`}>
+              <Users className="w-4 h-4" />
+            </div>
+            <span>联系人</span>
           </button>
 
           {/* Services Tab */}

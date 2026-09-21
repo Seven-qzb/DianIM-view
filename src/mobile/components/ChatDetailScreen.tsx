@@ -668,115 +668,122 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         ))}
       </div>
 
-      {/* Bottom Input Area Matching Figure 1 */}
-      <footer className="bg-white border-t border-slate-200/80 p-2.5 pb-5 relative z-20 shrink-0">
-        {/* Mute All Notice Banner */}
-        {conversation.isGroup && conversation.isMutedAll && (
-          <div className="mb-2 bg-amber-50 border border-amber-200/80 px-3 py-1.5 rounded-xl flex items-center justify-between text-[11px] text-amber-800">
-            <div className="flex items-center gap-1.5">
-              <VolumeX className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span>全员禁言中，仅群主和管理员可发言</span>
-            </div>
-            {conversation.isOwner !== false && (
-              <span className="text-[10px] bg-amber-200/70 px-1.5 py-0.5 rounded text-amber-900 font-medium shrink-0">
-                群主可发言
-              </span>
+      {/* Bottom Input Area Matching Figure 1 - Hidden for 我的任务 and 指令流转 */}
+      {!conversation.isNoticeSession &&
+        !conversation.isTaskSession &&
+        conversation.name !== '我的任务' &&
+        conversation.name !== '指令流转' &&
+        conversation.id !== 'session_my_tasks' &&
+        conversation.id !== 'session_notice' && (
+          <footer className="bg-white border-t border-slate-200/80 p-2.5 pb-5 relative z-20 shrink-0">
+            {/* Mute All Notice Banner */}
+            {conversation.isGroup && conversation.isMutedAll && (
+              <div className="mb-2 bg-amber-50 border border-amber-200/80 px-3 py-1.5 rounded-xl flex items-center justify-between text-[11px] text-amber-800">
+                <div className="flex items-center gap-1.5">
+                  <VolumeX className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>全员禁言中，仅群主和管理员可发言</span>
+                </div>
+                {conversation.isOwner !== false && (
+                  <span className="text-[10px] bg-amber-200/70 px-1.5 py-0.5 rounded text-amber-900 font-medium shrink-0">
+                    群主可发言
+                  </span>
+                )}
+              </div>
             )}
-          </div>
-        )}
 
-        {/* Input Bar or Closed Notice */}
-        {conversation.isClosed ? (
-          <div className="py-2.5 px-4 bg-slate-100 text-slate-500 rounded-xl text-xs text-center font-medium border border-slate-200">
-            该群组已关闭，已转为只读归档状态，无法继续发送消息
-          </div>
-        ) : conversation.isGroup && conversation.isMutedAll && conversation.isOwner === false ? (
-          <div className="py-2.5 px-4 bg-amber-50/80 text-amber-700 rounded-xl text-xs text-center font-medium border border-amber-200/80 flex items-center justify-center gap-1.5">
-            <VolumeX className="w-4 h-4 text-amber-600" />
-            <span>全员禁言中，仅群主和管理员可以发言</span>
-          </div>
-        ) : (
-          <form onSubmit={handleSend} className="flex items-center gap-2">
-            {/* Plus Button on Far Left Matching Figure 1: Circle gray plus */}
-            <button
-              type="button"
-              onClick={() => {
-                setShowAttachMenu(!showAttachMenu);
-                setShowEmojiPicker(false);
-                setIsVoiceRecordingOpen(false);
-              }}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
-                showAttachMenu
-                  ? 'bg-blue-100 text-[#0058BD]'
-                  : 'bg-[#E5E7EB] text-slate-700 hover:text-slate-900 active:scale-95'
-              }`}
-              title="更多功能"
-            >
-              <Plus className="w-5 h-5 stroke-[2.2]" />
-            </button>
+            {/* Input Bar or Closed Notice */}
+            {conversation.isClosed ? (
+              <div className="py-2.5 px-4 bg-slate-100 text-slate-500 rounded-xl text-xs text-center font-medium border border-slate-200">
+                该群组已关闭，已转为只读归档状态，无法继续发送消息
+              </div>
+            ) : conversation.isGroup && conversation.isMutedAll && conversation.isOwner === false ? (
+              <div className="py-2.5 px-4 bg-amber-50/80 text-amber-700 rounded-xl text-xs text-center font-medium border border-amber-200/80 flex items-center justify-center gap-1.5">
+                <VolumeX className="w-4 h-4 text-amber-600" />
+                <span>全员禁言中，仅群主和管理员可以发言</span>
+              </div>
+            ) : (
+              <form onSubmit={handleSend} className="flex items-center gap-2">
+                {/* Plus Button on Far Left Matching Figure 1: Circle gray plus */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAttachMenu(!showAttachMenu);
+                    setShowEmojiPicker(false);
+                    setIsVoiceRecordingOpen(false);
+                  }}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
+                    showAttachMenu
+                      ? 'bg-blue-100 text-[#0058BD]'
+                      : 'bg-[#E5E7EB] text-slate-700 hover:text-slate-900 active:scale-95'
+                  }`}
+                  title="更多功能"
+                >
+                  <Plus className="w-5 h-5 stroke-[2.2]" />
+                </button>
 
-            {/* Input Bar Container Matching Figure 1: Rounded pill container */}
-            <div className="flex-1 bg-[#F1F3F5] rounded-full px-3 py-1.5 flex items-center gap-2 border border-slate-200/70 focus-within:border-[#0058BD] focus-within:bg-white transition-all shadow-2xs">
-              {/* Text Input with Real-time Draft Preservation */}
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputText}
-                onChange={handleInputChange}
-                placeholder={
-                  conversation.isGroup && conversation.isMutedAll
-                    ? '全员禁言中（您是群主，可发言）'
-                    : '输入信息...'
-                }
-                className="flex-1 bg-transparent text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none font-normal"
-              />
+                {/* Input Bar Container Matching Figure 1: Rounded pill container */}
+                <div className="flex-1 bg-[#F1F3F5] rounded-full px-3 py-1.5 flex items-center gap-2 border border-slate-200/70 focus-within:border-[#0058BD] focus-within:bg-white transition-all shadow-2xs">
+                  {/* Text Input with Real-time Draft Preservation */}
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={inputText}
+                    onChange={handleInputChange}
+                    placeholder={
+                      conversation.isGroup && conversation.isMutedAll
+                        ? '全员禁言中（您是群主，可发言）'
+                        : '输入信息...'
+                    }
+                    className="flex-1 bg-transparent text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none font-normal"
+                  />
 
-              {/* Smile Emoji Button Matching Figure 1 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowEmojiPicker(!showEmojiPicker);
-                  setShowAttachMenu(false);
-                  setIsVoiceRecordingOpen(false);
-                }}
-                className={`p-1 rounded-full transition-colors cursor-pointer ${
-                  showEmojiPicker ? 'text-[#0058BD] bg-blue-50' : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="选择表情包"
-              >
-                <Smile className="w-5 h-5 stroke-[1.8]" />
-              </button>
+                  {/* Smile Emoji Button Matching Figure 1 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEmojiPicker(!showEmojiPicker);
+                      setShowAttachMenu(false);
+                      setIsVoiceRecordingOpen(false);
+                    }}
+                    className={`p-1 rounded-full transition-colors cursor-pointer ${
+                      showEmojiPicker ? 'text-[#0058BD] bg-blue-50' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="选择表情包"
+                  >
+                    <Smile className="w-5 h-5 stroke-[1.8]" />
+                  </button>
 
-              {/* Voice Button Matching Figure 1: Audio lines / soundwave lines inside */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsVoiceRecordingOpen(!isVoiceRecordingOpen);
-                  setShowEmojiPicker(false);
-                  setShowAttachMenu(false);
-                }}
-                className={`p-1 rounded-full transition-colors cursor-pointer ${
-                  isVoiceRecordingOpen ? 'text-[#0058BD] bg-blue-50' : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="语音输入"
-              >
-                <AudioLines className="w-5 h-5 stroke-[1.8]" />
-              </button>
-            </div>
+                  {/* Voice Button Matching Figure 1: Audio lines / soundwave lines inside */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsVoiceRecordingOpen(!isVoiceRecordingOpen);
+                      setShowEmojiPicker(false);
+                      setShowAttachMenu(false);
+                    }}
+                    className={`p-1 rounded-full transition-colors cursor-pointer ${
+                      isVoiceRecordingOpen ? 'text-[#0058BD] bg-blue-50' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="语音输入"
+                  >
+                    <AudioLines className="w-5 h-5 stroke-[1.8]" />
+                  </button>
+                </div>
 
-            {/* Send Button if input has content */}
-            {inputText.trim().length > 0 && (
-              <button
-                type="submit"
-                className="w-9 h-9 rounded-full bg-[#0058BD] text-white flex items-center justify-center shadow-xs active:scale-95 cursor-pointer hover:bg-[#004CB3] transition-all shrink-0"
-                title="发送"
-              >
-                <Send className="w-4 h-4 ml-0.5" />
-              </button>
+                {/* Send Button if input has content */}
+                {inputText.trim().length > 0 && (
+                  <button
+                    type="submit"
+                    className="w-9 h-9 rounded-full bg-[#0058BD] text-white flex items-center justify-center shadow-xs active:scale-95 cursor-pointer hover:bg-[#004CB3] transition-all shrink-0"
+                    title="发送"
+                  >
+                    <Send className="w-4 h-4 ml-0.5" />
+                  </button>
+                )}
+              </form>
             )}
-          </form>
+          </footer>
         )}
-      </footer>
 
       {/* Slide-up Plus Menu Sheet (Figure 2) */}
       <AnimatePresence>

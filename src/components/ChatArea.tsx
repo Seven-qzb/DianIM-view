@@ -139,9 +139,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
 
+    const cleanTitle = data.title.replace(/^(有任务到达：|有任务审核：|任务已完成：)/, '');
+
     const newTask: GroupTask = {
       id: `gt-${Date.now()}`,
-      title: data.title,
+      title: cleanTitle,
       content: data.content,
       status: 'pending_receive',
       creatorName: CURRENT_USER.name,
@@ -156,19 +158,43 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     };
 
     setGroupTasks((prev) => [newTask, ...prev]);
-    showToast('任务已成功下发');
+    // 1、创建任务 接收方：处理人 通知标题：有任务到达：+任务标题
+    showToast(`有任务到达：${cleanTitle}（接收方：${data.assigneeName}）`);
 
     onSendMessage(
-      `【下发任务】${data.title}（处理人: ${data.assigneeName}，限期: ${data.deadline || '未指定'}）`,
+      `有任务到达：${cleanTitle}（接收方：${data.assigneeName}）`,
       'text'
     );
   };
 
   const handleUpdateTaskStatus = (taskId: string, newStatus: GroupTaskStatus) => {
+    const targetTask = groupTasks.find((t) => t.id === taskId);
+    const cleanTitle = targetTask
+      ? targetTask.title.replace(/^(有任务到达：|有任务审核：|任务已完成：)/, '')
+      : '任务';
+
     setGroupTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
     );
-    showToast('任务状态已更新');
+
+    if (newStatus === 'pending_audit') {
+      // 2、提交任务 接收方：创建人 通知标题：有任务审核：+任务标题
+      const receiver = targetTask?.creatorName || '创建人';
+      showToast(`有任务审核：${cleanTitle}（接收方：${receiver}）`);
+      onSendMessage(`有任务审核：${cleanTitle}（接收方：${receiver}）`, 'text');
+    } else if (newStatus === 'pending_process' || newStatus === 'canceled') {
+      // 3、审核驳回 接收方：处理人 通知标题：有任务到达：+任务标题
+      const receiver = targetTask?.assigneeName || '处理人';
+      showToast(`有任务到达：${cleanTitle}（接收方：${receiver}）`);
+      onSendMessage(`有任务到达：${cleanTitle}（接收方：${receiver}）`, 'text');
+    } else if (newStatus === 'completed') {
+      // 4、审核通过 接收方：处理人 通知标题：任务已完成：+任务标题
+      const receiver = targetTask?.assigneeName || '处理人';
+      showToast(`任务已完成：${cleanTitle}（接收方：${receiver}）`);
+      onSendMessage(`任务已完成：${cleanTitle}（接收方：${receiver}）`, 'text');
+    } else {
+      showToast('任务状态已流转');
+    }
   };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -362,8 +388,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     return Math.min(Math.max(1, base), Math.max(1, maxMem - 1));
   };
 
+  // Check whether current session is 我的任务 or 指令流转 (read-only card stream with no input box)
+  const isTaskOrNoticeSession =
+    session.isTaskSession ||
+    session.isNoticeSession ||
+    session.name === '我的任务' ||
+    session.name === '指令流转' ||
+    session.id === 'session_my_tasks' ||
+    session.id === 'session_notice';
+
   const renderReadCountBadge = (msg: ChatMessage, isCurrentUserMsg: boolean) => {
-    if (!session.isGroup || session.isNoticeSession || session.isTaskSession) return null;
+    if (!session.isGroup || isTaskOrNoticeSession) return null;
     const readCount = getMessageReadCount(msg);
     const totalMembers = session.memberCount || session.members?.length || 10;
     // 全部已读判定（群内其他人都已读，或者读取数达到总人数-1/总人数）
@@ -523,7 +558,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               )}
 
               {/* 群聊畅聊沟通状态标识 (隐藏) */}
-              {session.isGroup && !session.isNoticeSession && !session.isTaskSession && (
+              {session.isGroup && !isTaskOrNoticeSession && (
                 <div
                   id="group-auto-chat-badge"
                   className="hidden"
@@ -550,7 +585,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               )}
             </div>
             <div className="text-[11px] text-gray-500 font-normal leading-tight flex items-center gap-1 mt-0.5">
-              {session.isTaskSession || session.isNoticeSession ? null : (
+              {isTaskOrNoticeSession ? null : (
                 <>
                   <span>{session.memberCount || session.members?.length || 1}人</span>
                   <span>·</span>
@@ -568,7 +603,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
 
         {/* Right: Actions (Only shown for normal chat sessions, hidden for task and notice sessions) */}
-        {!session.isTaskSession && !session.isNoticeSession && (
+        {!isTaskOrNoticeSession && (
           <div className="flex items-center gap-1 mt-3">
             {/* 免打扰铃铛 */}
             <button
@@ -873,22 +908,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     onClick={() => handleOpenFlowDirective(msg)}
                     className="w-full max-w-[420px] bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-200 p-4 space-y-3 cursor-pointer group transition-all select-none"
                   >
-                    {/* Header: Title on Left, Status on Right */}
-                    <div className="flex items-start justify-between gap-3 border-b border-gray-100/90 pb-2">
-                      <h3 className="text-[13px] font-bold text-gray-900 group-hover:text-blue-600 transition-colors leading-snug">
+                    {/* Header: Title */}
+                    <div className="border-b border-gray-100/90 pb-2">
+                      <h3 className="text-[13.5px] font-bold text-gray-900 group-hover:text-blue-600 transition-colors leading-snug">
                         {msg.taskCardData.title}
                       </h3>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 shadow-2xs whitespace-nowrap ${
-                          msg.taskCardData.status === '待审核'
-                            ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                            : msg.taskCardData.status === '已办结' || msg.taskCardData.status === '已完成'
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-600 border border-amber-200'
-                        }`}
-                      >
-                        {msg.taskCardData.status || '待处理'}
-                      </span>
                     </div>
 
                     {/* Middle Info Fields: 发起人、处理人、创建时间 */}
@@ -1232,7 +1256,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       </div>
 
       {/* Emoji Picker Popup */}
-      {showEmojiPicker && (
+      {showEmojiPicker && !isTaskOrNoticeSession && (
         <div className="absolute bottom-28 left-4 z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-2 w-56 h-40 overflow-y-auto custom-scrollbar grid grid-cols-5 gap-1">
           {emojis.map((emoji, idx) => (
             <button
@@ -1251,148 +1275,150 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
       )}
 
-      {/* Bottom Input Area */}
-      <div className="border-t border-gray-100 bg-white z-10 flex flex-col">
-        {/* Active Quotation Preview Bar */}
-        {quotedMessage && (
-          <div className="flex items-center justify-between px-3 py-1.5 bg-blue-50/70 border-b border-blue-100/60 text-xs text-gray-700 animate-in fade-in slide-in-from-bottom-1 select-none">
-            <div className="flex items-center gap-2 overflow-hidden mr-2">
-              <MessageSquareQuote className="w-3.5 h-3.5 text-[#2979ff] shrink-0" />
-              <span className="font-medium text-gray-800 shrink-0">引用 {quotedMessage.senderName}:</span>
-              <span className="truncate text-gray-500">{quotedMessage.content}</span>
-            </div>
-            <button
-              onClick={() => setQuotedMessage(null)}
-              className="text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-200/80 transition-colors shrink-0 cursor-pointer"
-              title="取消引用"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        <div className="flex flex-col p-3 pt-2">
-          {/* Toolbar Icons */}
-          <div className="flex items-center gap-3 text-gray-500 mb-1.5 select-none">
-            <button
-              id="btn-tool-emoji"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="p-1 hover:text-[#2979ff] rounded transition-colors cursor-pointer"
-              title="表情"
-            >
-              <Smile className="w-4 h-4" />
-            </button>
-            <button
-              id="btn-tool-image"
-              onClick={() => {
-                const sampleUrl = prompt('请输入要发送的图片链接或本地测试:', 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=600');
-                if (sampleUrl) {
-                  onSendMessage(sampleUrl, 'image');
-                }
-              }}
-              className="p-1 hover:text-[#2979ff] rounded transition-colors cursor-pointer"
-              title="发送图片"
-            >
-              <ImageIcon className="w-4 h-4" />
-            </button>
-            <button
-              id="btn-tool-attach"
-              onClick={() => alert('已调用国密端对端加密文件传输模块')}
-              className="p-1 hover:text-[#2979ff] rounded transition-colors cursor-pointer"
-              title="发送文件附件"
-            >
-              <Paperclip className="w-4 h-4" />
-            </button>
-            <div className="flex items-center hover:text-[#2979ff] rounded p-0.5 cursor-pointer">
-              <button
-                id="btn-tool-screenshot"
-                onClick={() => alert('已调用截图工具 (快捷键: Ctrl+Alt+A)')}
-                title="屏幕截图"
-              >
-                <Scissors className="w-4 h-4" />
-              </button>
-              <ChevronDown className="w-3 h-3 text-gray-400 ml-0.5" />
-            </div>
-
-            <button
-              id="btn-tool-poll"
-              onClick={() => {}}
-              className="p-1 text-[#2979ff] hover:opacity-80 rounded transition-colors"
-              title="传播分析"
-            >
-              <TrendingUp className="w-4 h-4" />
-            </button>
-            <button
-              id="btn-tool-calendar"
-              onClick={() => {
-                if (!isTaskPanelOpen && isSidebarOpen) {
-                  onToggleSidebar();
-                }
-                setIsHistoryDrawerOpen(false);
-                setIsTaskPanelOpen((prev) => !prev);
-              }}
-              className={`p-1 rounded transition-colors cursor-pointer ${
-                isTaskPanelOpen
-                  ? 'text-[#2979ff] bg-blue-50 ring-1 ring-blue-200 shadow-2xs'
-                  : 'text-emerald-500 hover:opacity-80 hover:bg-emerald-50'
-              }`}
-              title="任务模块 (全部任务 / 我的任务)"
-            >
-              <ClipboardCheck className="w-4 h-4" />
-            </button>
-
-            {/* 模拟其他端发送语音按钮（方便测试与体验 PC 端接收及转文字功能） */}
-            <button
-              id="btn-simulate-mobile-voice"
-              type="button"
-              onClick={() => sendSimulatedVoiceMessage(session.id)}
-              className="flex items-center gap-1 px-2 py-0.5 text-xs text-blue-600 bg-blue-50/80 hover:bg-blue-100 hover:text-blue-700 border border-blue-200/80 rounded-md transition-colors cursor-pointer select-none ml-auto"
-              title="模拟其他端（手机移动端）向当前会话发送语音，体验PC端播放与转文字功能"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-blue-600" />
-              <span className="text-[11px] font-medium">模拟移动端语音</span>
-            </button>
-          </div>
-
-          {/* Text Input Box */}
-          <div className="flex flex-col">
-            {session.isClosed ? (
-              <div className="py-4 text-center text-xs text-gray-400 bg-gray-50/80 rounded-lg border border-dashed border-gray-200 select-none">
-                当前群聊已被群主关闭，暂不支持发送新消息
+      {/* Bottom Input Area - completely hidden for 我的任务 and 指令流转 */}
+      {!isTaskOrNoticeSession && (
+        <div className="border-t border-gray-100 bg-white z-10 flex flex-col">
+          {/* Active Quotation Preview Bar */}
+          {quotedMessage && (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-blue-50/70 border-b border-blue-100/60 text-xs text-gray-700 animate-in fade-in slide-in-from-bottom-1 select-none">
+              <div className="flex items-center gap-2 overflow-hidden mr-2">
+                <MessageSquareQuote className="w-3.5 h-3.5 text-[#2979ff] shrink-0" />
+                <span className="font-medium text-gray-800 shrink-0">引用 {quotedMessage.senderName}:</span>
+                <span className="truncate text-gray-500">{quotedMessage.content}</span>
               </div>
-            ) : (
-              <>
-                <textarea
-                  ref={textareaRef}
-                  id="chat-message-input"
-                  rows={3}
-                  placeholder="按回车 (Enter) 发送，草稿将自动保存"
-                  value={inputText}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  className="w-full text-xs text-gray-800 placeholder-gray-400 resize-none outline-hidden bg-transparent leading-relaxed py-1"
-                />
+              <button
+                onClick={() => setQuotedMessage(null)}
+                className="text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-200/80 transition-colors shrink-0 cursor-pointer"
+                title="取消引用"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
-                {/* Bottom Send Action */}
-                <div className="flex items-center justify-end pt-1">
-                  <button
-                    id="btn-send-message"
-                    onClick={handleSend}
-                    disabled={!inputText.trim()}
-                    className={`px-4 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                      inputText.trim()
-                        ? 'bg-[#2979ff] text-white hover:bg-[#1e6bf0] active:scale-95 shadow-xs'
-                        : 'bg-[#ebecee] text-gray-400 cursor-not-allowed'
-                    }`}
-                  >
-                    发送
-                  </button>
+          <div className="flex flex-col p-3 pt-2">
+            {/* Toolbar Icons */}
+            <div className="flex items-center gap-3 text-gray-500 mb-1.5 select-none">
+              <button
+                id="btn-tool-emoji"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="p-1 hover:text-[#2979ff] rounded transition-colors cursor-pointer"
+                title="表情"
+              >
+                <Smile className="w-4 h-4" />
+              </button>
+              <button
+                id="btn-tool-image"
+                onClick={() => {
+                  const sampleUrl = prompt('请输入要发送的图片链接或本地测试:', 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=600');
+                  if (sampleUrl) {
+                    onSendMessage(sampleUrl, 'image');
+                  }
+                }}
+                className="p-1 hover:text-[#2979ff] rounded transition-colors cursor-pointer"
+                title="发送图片"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </button>
+              <button
+                id="btn-tool-attach"
+                onClick={() => alert('已调用国密端对端加密文件传输模块')}
+                className="p-1 hover:text-[#2979ff] rounded transition-colors cursor-pointer"
+                title="发送文件附件"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
+              <div className="flex items-center hover:text-[#2979ff] rounded p-0.5 cursor-pointer">
+                <button
+                  id="btn-tool-screenshot"
+                  onClick={() => alert('已调用截图工具 (快捷键: Ctrl+Alt+A)')}
+                  title="屏幕截图"
+                >
+                  <Scissors className="w-4 h-4" />
+                </button>
+                <ChevronDown className="w-3 h-3 text-gray-400 ml-0.5" />
+              </div>
+
+              <button
+                id="btn-tool-poll"
+                onClick={() => {}}
+                className="p-1 text-[#2979ff] hover:opacity-80 rounded transition-colors"
+                title="传播分析"
+              >
+                <TrendingUp className="w-4 h-4" />
+              </button>
+              <button
+                id="btn-tool-calendar"
+                onClick={() => {
+                  if (!isTaskPanelOpen && isSidebarOpen) {
+                    onToggleSidebar();
+                  }
+                  setIsHistoryDrawerOpen(false);
+                  setIsTaskPanelOpen((prev) => !prev);
+                }}
+                className={`p-1 rounded transition-colors cursor-pointer ${
+                  isTaskPanelOpen
+                    ? 'text-[#2979ff] bg-blue-50 ring-1 ring-blue-200 shadow-2xs'
+                    : 'text-emerald-500 hover:opacity-80 hover:bg-emerald-50'
+                }`}
+                title="任务模块 (全部任务 / 我的任务)"
+              >
+                <ClipboardCheck className="w-4 h-4" />
+              </button>
+
+              {/* 模拟其他端发送语音按钮（方便测试与体验 PC 端接收及转文字功能） */}
+              <button
+                id="btn-simulate-mobile-voice"
+                type="button"
+                onClick={() => sendSimulatedVoiceMessage(session.id)}
+                className="flex items-center gap-1 px-2 py-0.5 text-xs text-blue-600 bg-blue-50/80 hover:bg-blue-100 hover:text-blue-700 border border-blue-200/80 rounded-md transition-colors cursor-pointer select-none ml-auto"
+                title="模拟其他端（手机移动端）向当前会话发送语音，体验PC端播放与转文字功能"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                <span className="text-[11px] font-medium">模拟移动端语音</span>
+              </button>
+            </div>
+
+            {/* Text Input Box */}
+            <div className="flex flex-col">
+              {session.isClosed ? (
+                <div className="py-4 text-center text-xs text-gray-400 bg-gray-50/80 rounded-lg border border-dashed border-gray-200 select-none">
+                  当前群聊已被群主关闭，暂不支持发送新消息
                 </div>
-              </>
-            )}
+              ) : (
+                <>
+                  <textarea
+                    ref={textareaRef}
+                    id="chat-message-input"
+                    rows={3}
+                    placeholder="按回车 (Enter) 发送，草稿将自动保存"
+                    value={inputText}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
+                    className="w-full text-xs text-gray-800 placeholder-gray-400 resize-none outline-hidden bg-transparent leading-relaxed py-1"
+                  />
+
+                  {/* Bottom Send Action */}
+                  <div className="flex items-center justify-end pt-1">
+                    <button
+                      id="btn-send-message"
+                      onClick={handleSend}
+                      disabled={!inputText.trim()}
+                      className={`px-4 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                        inputText.trim()
+                          ? 'bg-[#2979ff] text-white hover:bg-[#1e6bf0] active:scale-95 shadow-xs'
+                          : 'bg-[#ebecee] text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      发送
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Lightweight Toast for Copy / Actions */}
       {toastMessage && (

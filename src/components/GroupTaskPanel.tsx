@@ -11,12 +11,10 @@ interface GroupTaskPanelProps {
   onUpdateTaskStatus?: (taskId: string, newStatus: GroupTaskStatus) => void;
 }
 
-const STATUS_FILTERS: { key: GroupTaskStatus | 'all'; label: string }[] = [
-  { key: 'pending_receive', label: '待接收' },
-  { key: 'pending_process', label: '待处理' },
-  { key: 'pending_audit', label: '待审核' },
-  { key: 'completed', label: '已完成' },
-  { key: 'canceled', label: '已撤销' },
+const ROLE_FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: 'assigned_to_me', label: '待我处理' },
+  { key: 'created_by_me', label: '我发起的' },
 ];
 
 export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
@@ -27,7 +25,7 @@ export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
   onUpdateTaskStatus,
 }) => {
   const [activeMainTab, setActiveMainTab] = useState<'all' | 'my'>('all');
-  const [statusFilter, setStatusFilter] = useState<GroupTaskStatus | 'all'>('pending_receive');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'assigned_to_me' | 'created_by_me'>('all');
   const [selectedTask, setSelectedTask] = useState<GroupTask | null>(null);
   const [completionNote, setCompletionNote] = useState('');
 
@@ -48,70 +46,16 @@ export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
     return true;
   });
 
-  // 3. By status filter
+  // 3. By role filter (No status filter!)
   const displayedTasks = tabTasks.filter((t) => {
-    if (statusFilter === 'all') return true;
-    return t.status === statusFilter;
+    if (roleFilter === 'assigned_to_me') {
+      return t.assigneeName === CURRENT_USER.name || t.assigneeId === CURRENT_USER.id;
+    }
+    if (roleFilter === 'created_by_me') {
+      return t.creatorName === CURRENT_USER.name || t.creatorId === CURRENT_USER.id;
+    }
+    return true;
   });
-
-  // Render stamp based on status
-  const renderStamp = (status: GroupTaskStatus, isSmall = false) => {
-    const baseClass = isSmall
-      ? 'border px-1.5 py-0.2 rounded text-[10px] font-bold tracking-wider select-none shadow-2xs rotate-[-8deg]'
-      : 'border-2 px-2 py-0.5 rounded-lg text-xs font-bold tracking-wider select-none shadow-2xs rotate-[-10deg]';
-
-    switch (status) {
-      case 'pending_receive':
-        return (
-          <div className={`${baseClass} border-orange-500/80 text-orange-600 bg-orange-50/50`}>
-            待接收
-          </div>
-        );
-      case 'pending_audit':
-        return (
-          <div className={`${baseClass} border-rose-500/80 text-rose-600 bg-rose-50/50`}>
-            待审核
-          </div>
-        );
-      case 'pending_process':
-        return (
-          <div className={`${baseClass} border-blue-500/80 text-blue-600 bg-blue-50/50`}>
-            待处理
-          </div>
-        );
-      case 'completed':
-        return (
-          <div className={`${baseClass} border-emerald-500/80 text-emerald-600 bg-emerald-50/50`}>
-            已完成
-          </div>
-        );
-      case 'canceled':
-        return (
-          <div className={`${baseClass} border-gray-400/80 text-gray-500 bg-gray-50/60`}>
-            已撤销
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const getStatusLabel = (status: GroupTaskStatus) => {
-    switch (status) {
-      case 'pending_receive':
-        return '待接收';
-      case 'pending_process':
-        return '待处理';
-      case 'pending_audit':
-        return '待审核';
-      case 'completed':
-        return '已完成';
-      case 'canceled':
-        return '已撤销';
-      default:
-        return '未定义';
-    }
-  };
 
   const currentSelected = selectedTask
     ? tasks.find((t) => t.id === selectedTask.id) || selectedTask
@@ -136,7 +80,6 @@ export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
             </button>
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-gray-800">任务详情</span>
-              <span className="text-[11px] text-gray-400">({getStatusLabel(currentSelected.status)})</span>
             </div>
             <button
               onClick={onClose}
@@ -149,15 +92,12 @@ export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
 
           {/* Task Detail Body */}
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {/* Section 1: Task Title & Status Stamp */}
+            {/* Section 1: Task Title */}
             <div className="p-3 bg-white border-b border-gray-100 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="text-xs font-bold text-gray-900 leading-snug break-words">
                   {currentSelected.title}
                 </h3>
-                <div className="shrink-0">
-                  {renderStamp(currentSelected.status, true)}
-                </div>
               </div>
 
               {currentSelected.deadline && (
@@ -211,27 +151,17 @@ export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
               </div>
             </div>
 
-            {/* Section 4: Actions based on status */}
+            {/* Section 4: Actions based on lifecycle flow */}
             <div className="p-3 space-y-2">
               <div className="text-[11px] font-bold text-gray-700">操作流程</div>
-              {currentSelected.status === 'pending_receive' && (
-                <button
-                  type="button"
-                  onClick={() => onUpdateTaskStatus?.(currentSelected.id, 'pending_process')}
-                  className="w-full py-2 bg-[#2979ff] hover:bg-blue-600 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.99]"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  <span>确认接收任务</span>
-                </button>
-              )}
-
-              {currentSelected.status === 'pending_process' && (
+              {/* 2、提交任务 接收方：创建人 通知标题：有任务审核：+任务标题 */}
+              {(currentSelected.status === 'pending_receive' || currentSelected.status === 'pending_process') && (
                 <div className="space-y-2">
                   <textarea
                     rows={2}
                     value={completionNote}
                     onChange={(e) => setCompletionNote(e.target.value)}
-                    placeholder="请输入任务处理描述..."
+                    placeholder="请输入任务处理或完成说明..."
                     className="w-full bg-white border border-gray-200 rounded-lg p-2 text-[11px] text-gray-800 placeholder-gray-400 focus:border-blue-500 outline-hidden resize-none"
                   />
                   <button
@@ -240,39 +170,40 @@ export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
                       onUpdateTaskStatus?.(currentSelected.id, 'pending_audit');
                       setCompletionNote('');
                     }}
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.99]"
+                    className="w-full py-2 bg-[#2979ff] hover:bg-blue-600 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.99]"
                   >
                     <ArrowRight className="w-3.5 h-3.5" />
-                    <span>提交审核</span>
+                    <span>提交任务（接收方：创建人）</span>
                   </button>
                 </div>
               )}
 
+              {/* 3、审核驳回 / 4、审核通过 接收方：处理人 */}
               {currentSelected.status === 'pending_audit' && (
-                <button
-                  type="button"
-                  onClick={() => onUpdateTaskStatus?.(currentSelected.id, 'completed')}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.99]"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  <span>审核通过并归档</span>
-                </button>
-              )}
-
-              {currentSelected.status !== 'completed' && currentSelected.status !== 'canceled' && (
-                <button
-                  type="button"
-                  onClick={() => onUpdateTaskStatus?.(currentSelected.id, 'canceled')}
-                  className="w-full py-1.5 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-lg text-xs font-medium border border-gray-200/80 cursor-pointer transition-colors"
-                >
-                  撤销该任务
-                </button>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateTaskStatus?.(currentSelected.id, 'pending_process')}
+                    className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.99]"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>审核驳回（接收方：处理人）</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateTaskStatus?.(currentSelected.id, 'completed')}
+                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.99]"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>审核通过（接收方：处理人）</span>
+                  </button>
+                </div>
               )}
 
               {currentSelected.status === 'completed' && (
                 <div className="py-2.5 text-center text-xs text-emerald-600 font-semibold bg-emerald-50 rounded-lg border border-emerald-100 flex items-center justify-center gap-1">
                   <CheckCircle className="w-4 h-4" />
-                  <span>该任务已闭环完成</span>
+                  <span>任务已完成并归档</span>
                 </div>
               )}
             </div>
@@ -346,17 +277,17 @@ export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
             </button>
           </div>
 
-          {/* Status Sub-Filters */}
+          {/* Role Sub-Filters (No task status) */}
           <div className="px-2.5 py-2 bg-white/80 border-b border-gray-100 flex items-center gap-1 overflow-x-auto custom-scrollbar shrink-0">
-            {STATUS_FILTERS.map((f) => {
-              const isSelected = statusFilter === f.key;
+            {ROLE_FILTERS.map((f) => {
+              const isSelected = roleFilter === f.key;
               return (
                 <button
                   key={f.key}
-                  onClick={() => setStatusFilter(isSelected && statusFilter !== 'all' ? 'all' : f.key)}
-                  className={`px-2 py-0.5 text-[11px] rounded-md font-medium transition-all shrink-0 cursor-pointer select-none ${
+                  onClick={() => setRoleFilter(f.key as any)}
+                  className={`px-2.5 py-0.5 text-[11px] rounded-md font-medium transition-all shrink-0 cursor-pointer select-none ${
                     isSelected
-                      ? 'bg-white text-gray-900 border border-gray-200 shadow-2xs font-semibold'
+                      ? 'bg-white text-blue-600 border border-blue-200 shadow-2xs font-semibold'
                       : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100/60'
                   }`}
                 >
@@ -366,7 +297,7 @@ export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
             })}
           </div>
 
-          {/* Task List */}
+          {/* Task List (No status stamp displayed) */}
           <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5 custom-scrollbar">
             {displayedTasks.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -384,16 +315,11 @@ export const GroupTaskPanel: React.FC<GroupTaskPanelProps> = ({
                   className="bg-white rounded-xl border border-gray-200/70 shadow-2xs hover:shadow-md hover:border-blue-200 transition-all relative overflow-hidden flex flex-col cursor-pointer active:scale-[0.995]"
                   title="点击查看任务详情"
                 >
-                  {/* Task Header & Stamp */}
+                  {/* Task Header without Status Stamp */}
                   <div className="p-3 pb-2 relative">
-                    <div className="flex items-start justify-between gap-1.5">
-                      <h4 className="text-xs font-bold text-gray-900 leading-snug line-clamp-2 pr-12">
-                        {task.title}
-                      </h4>
-                      <div className="absolute top-2.5 right-2.5 pointer-events-none">
-                        {renderStamp(task.status, true)}
-                      </div>
-                    </div>
+                    <h4 className="text-xs font-bold text-gray-900 leading-snug line-clamp-2">
+                      {task.title}
+                    </h4>
 
                     {/* Sub info */}
                     <div className="mt-2.5 space-y-0.5 text-[11px] text-gray-500">

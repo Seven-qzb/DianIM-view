@@ -10,13 +10,18 @@ function parseHash(hash: string): RouteState {
 
   const parts = cleanHash.split('/').filter(Boolean);
   const tabCandidate = parts[0] as MainNavTab;
-  const validTabs: MainNavTab[] = ['messages', 'services', 'settings'];
+  const validTabs: MainNavTab[] = ['messages', 'contacts', 'services', 'settings'];
 
   const tab: MainNavTab = validTabs.includes(tabCandidate) ? tabCandidate : 'messages';
 
   if (tab === 'messages') {
     const sessionId = parts[1] || undefined;
     return { tab, sessionId };
+  }
+
+  if (tab === 'contacts') {
+    const subView = parts[1] || undefined;
+    return { tab, subView };
   }
 
   if (tab === 'services') {
@@ -30,6 +35,9 @@ function parseHash(hash: string): RouteState {
 function buildHash(route: RouteState): string {
   if (route.tab === 'messages') {
     return route.sessionId ? `#/messages/${route.sessionId}` : '#/messages';
+  }
+  if (route.tab === 'contacts') {
+    return route.subView ? `#/contacts/${route.subView}` : '#/contacts';
   }
   if (route.tab === 'services') {
     return route.subView ? `#/services/${route.subView}` : '#/services';

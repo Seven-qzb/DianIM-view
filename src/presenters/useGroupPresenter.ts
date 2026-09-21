@@ -9,12 +9,12 @@ import { useCallback } from 'react';
 import { unifiedStore } from '../models/stores/UnifiedStore';
 import { UserMember } from '../models/entities/user';
 import { ChatSession } from '../models/entities/chat';
-import { syncBridge } from '../services/terminalSyncBridge';
+import { syncBridge, TerminalSource } from '../services/terminalSyncBridge';
 import { soundService } from '../services/audioService';
 
 export function useGroupPresenter() {
   // 1. 修改群名称
-  const updateGroupName = useCallback((source: 'pc' | 'app', sessionId: string, newName: string) => {
+  const updateGroupName = useCallback((source: TerminalSource, sessionId: string, newName: string) => {
     unifiedStore.setState((prev) => ({
       sessions: prev.sessions.map((s) => (s.id === sessionId ? { ...s, name: newName } : s)),
     }));
@@ -22,7 +22,7 @@ export function useGroupPresenter() {
   }, []);
 
   // 2. 更新群公告
-  const updateAnnouncement = useCallback((source: 'pc' | 'app', sessionId: string, announcement: string) => {
+  const updateAnnouncement = useCallback((source: TerminalSource, sessionId: string, announcement: string) => {
     unifiedStore.setState((prev) => ({
       sessions: prev.sessions.map((s) => (s.id === sessionId ? { ...s, announcement } : s)),
     }));
@@ -30,7 +30,7 @@ export function useGroupPresenter() {
   }, []);
 
   // 3. 静音免打扰开关
-  const toggleMute = useCallback((source: 'pc' | 'app', sessionId: string) => {
+  const toggleMute = useCallback((source: TerminalSource, sessionId: string) => {
     let nextState = false;
     unifiedStore.setState((prev) => {
       const nextSessions = prev.sessions.map((s) => {
@@ -69,7 +69,7 @@ export function useGroupPresenter() {
   }, []);
 
   // 6. 关闭/开启群聊（只读归档）
-  const toggleGroupStatus = useCallback((source: 'pc' | 'app', sessionId: string) => {
+  const toggleGroupStatus = useCallback((source: TerminalSource, sessionId: string) => {
     let nextClosed = false;
     unifiedStore.setState((prev) => {
       const nextSessions = prev.sessions.map((s) => {
@@ -87,7 +87,7 @@ export function useGroupPresenter() {
   }, []);
 
   // 7. 群邀请审批开关
-  const toggleInviteConfirm = useCallback((source: 'pc' | 'app', sessionId: string) => {
+  const toggleInviteConfirm = useCallback((source: TerminalSource, sessionId: string) => {
     let nextConfirm = false;
     unifiedStore.setState((prev) => {
       const nextSessions = prev.sessions.map((s) => {
@@ -105,7 +105,7 @@ export function useGroupPresenter() {
   }, []);
 
   // 8. 退出群聊
-  const exitGroup = useCallback((source: 'pc' | 'app', sessionId: string) => {
+  const exitGroup = useCallback((source: TerminalSource, sessionId: string) => {
     unifiedStore.setState((prev) => ({
       sessions: prev.sessions.filter((s) => s.id !== sessionId),
     }));
@@ -113,7 +113,7 @@ export function useGroupPresenter() {
   }, []);
 
   // 9. 解散群聊
-  const disbandGroup = useCallback((source: 'pc' | 'app', sessionId: string) => {
+  const disbandGroup = useCallback((source: TerminalSource, sessionId: string) => {
     unifiedStore.setState((prev) => ({
       sessions: prev.sessions.filter((s) => s.id !== sessionId),
     }));

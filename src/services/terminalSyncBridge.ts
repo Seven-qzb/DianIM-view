@@ -37,29 +37,31 @@ export interface DirectiveActionPayload {
   timestamp: string;
 }
 
+export type TerminalSource = 'pc' | 'app' | 'miniapp';
+
 type SyncEventListener = (payload: any) => void;
 
 class TerminalSyncBridge {
   private listeners: Map<string, Set<SyncEventListener>> = new Map();
 
-  // Session ID mapping between PC and APP terminals
-  // PC 'session_rd_dept' <===> APP 'conv-2' (研发部)
-  // PC 'session_notice'  <===> APP 'conv-1' (指令/舆情流转)
-  private pcToAppSessionMap: Record<string, string> = {
+  // Session ID mapping between PC and APP/MiniApp terminals
+  // PC 'session_rd_dept' <===> APP/MiniApp 'conv-2' (研发部)
+  // PC 'session_notice'  <===> APP/MiniApp 'conv-1' (指令/舆情流转)
+  private pcToMobileSessionMap: Record<string, string> = {
     'session_rd_dept': 'conv-2',
     'session_notice': 'conv-1',
   };
 
-  private appToPcSessionMap: Record<string, string> = {
+  private mobileToPcSessionMap: Record<string, string> = {
     'conv-2': 'session_rd_dept',
     'conv-1': 'session_notice',
   };
 
-  public getMappedSessionId(source: 'pc' | 'app', sessionId: string): string {
+  public getMappedSessionId(source: TerminalSource, sessionId: string): string {
     if (source === 'pc') {
-      return this.pcToAppSessionMap[sessionId] || sessionId;
+      return this.pcToMobileSessionMap[sessionId] || sessionId;
     } else {
-      return this.appToPcSessionMap[sessionId] || sessionId;
+      return this.mobileToPcSessionMap[sessionId] || sessionId;
     }
   }
 
@@ -87,37 +89,52 @@ class TerminalSyncBridge {
     }
   }
 
+  private getOtherTargets(source: TerminalSource): ('pc' | 'app' | 'miniapp')[] {
+    const all: ('pc' | 'app' | 'miniapp')[] = ['pc', 'app', 'miniapp'];
+    return all.filter((t) => t !== source);
+  }
+
   // 1. Cross-terminal message sync
-  public dispatchMessage(source: 'pc' | 'app', message: CrossTerminalMessage): void {
-    const target = source === 'pc' ? 'app' : 'pc';
-    this.emit(`message:${target}`, message);
+  public dispatchMessage(source: TerminalSource, message: CrossTerminalMessage): void {
+    const targets = this.getOtherTargets(source);
+    targets.forEach((target) => {
+      this.emit(`message:${target}`, message);
+    });
   }
 
   // 2. Cross-terminal message revoke
-  public dispatchRevokeMessage(source: 'pc' | 'app', sessionId: string, messageId: string): void {
-    const target = source === 'pc' ? 'app' : 'pc';
+  public dispatchRevokeMessage(source: TerminalSource, sessionId: string, messageId: string): void {
+    const targets = this.getOtherTargets(source);
     const targetSessionId = this.getMappedSessionId(source, sessionId);
-    this.emit(`revoke:${target}`, { sessionId: targetSessionId, messageId });
+    targets.forEach((target) => {
+      this.emit(`revoke:${target}`, { sessionId: targetSessionId, messageId });
+    });
   }
 
   // 3. Cross-terminal group update
-  public dispatchGroupUpdate(source: 'pc' | 'app', sessionId: string, updates: GroupUpdatePayload): void {
-    const target = source === 'pc' ? 'app' : 'pc';
+  public dispatchGroupUpdate(source: TerminalSource, sessionId: string, updates: GroupUpdatePayload): void {
+    const targets = this.getOtherTargets(source);
     const targetSessionId = this.getMappedSessionId(source, sessionId);
-    this.emit(`group_update:${target}`, { sessionId: targetSessionId, updates });
+    targets.forEach((target) => {
+      this.emit(`group_update:${target}`, { sessionId: targetSessionId, updates });
+    });
   }
 
   // 4. Cross-terminal directive/task action
-  public dispatchDirectiveAction(source: 'pc' | 'app', payload: DirectiveActionPayload): void {
-    const target = source === 'pc' ? 'app' : 'pc';
-    this.emit(`directive:${target}`, payload);
+  public dispatchDirectiveAction(source: TerminalSource, payload: DirectiveActionPayload): void {
+    const targets = this.getOtherTargets(source);
+    targets.forEach((target) => {
+      this.emit(`directive:${target}`, payload);
+    });
   }
 
   // 5. Cross-terminal draft sync
-  public dispatchDraftSync(source: 'pc' | 'app', sessionId: string, draft: string): void {
-    const target = source === 'pc' ? 'app' : 'pc';
+  public dispatchDraftSync(source: TerminalSource, sessionId: string, draft: string): void {
+    const targets = this.getOtherTargets(source);
     const targetSessionId = this.getMappedSessionId(source, sessionId);
-    this.emit(`draft:${target}`, { sessionId: targetSessionId, draft });
+    targets.forEach((target) => {
+      this.emit(`draft:${target}`, { sessionId: targetSessionId, draft });
+    });
   }
 }
 

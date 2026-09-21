@@ -1,7 +1,8 @@
 /**
- * [View - MobileMainView]
- * 移动端主界面视图 (Thin View)
- * 纯UI呈现，将消息发送、撤回、群管理、任务签署全部委托给 Presenter 层
+ * [View - MiniAppMainView]
+ * 微信小程序端主界面视图
+ * 根据 APP端 原型 100% 深度复制，顶部右侧集成专属原生「功能三点栏 (Capsule Bar)」与小程序操作生态
+ * 具备双向跨端同频广播、音视频对讲、公文指令流转与群聊治理全部能力
  */
 
 import React, { useState, useEffect } from 'react';
@@ -24,7 +25,7 @@ import { GroupSettingsScreen } from '../../mobile/components/GroupSettingsScreen
 import { ServicesTab } from '../../mobile/components/ServicesTab';
 import { ProfileTab } from '../../mobile/components/ProfileTab';
 import { InstructionFlowModal } from '../../mobile/components/InstructionFlowModal';
-import { IPhone15ProMaxContainer } from '../../mobile/components/IPhone15ProMaxContainer';
+import { MiniProgramContainer } from '../../miniapp/components/MiniProgramContainer';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMobileRouter } from '../../mobile/router/useMobileRouter';
 import { useChatPresenter } from '../../presenters/useChatPresenter';
@@ -32,16 +33,16 @@ import { useGroupPresenter } from '../../presenters/useGroupPresenter';
 import { useTaskPresenter } from '../../presenters/useTaskPresenter';
 import { syncBridge, CrossTerminalMessage } from '../../services/terminalSyncBridge';
 
-export interface MobileMainViewProps {
+export interface MiniAppMainViewProps {
   onBackToPortal?: () => void;
+  onSwitchToAPP?: () => void;
   onSwitchToPC?: () => void;
-  onSwitchToMiniApp?: () => void;
 }
 
-export const MobileMainView: React.FC<MobileMainViewProps> = ({
+export const MiniAppMainView: React.FC<MiniAppMainViewProps> = ({
   onBackToPortal,
+  onSwitchToAPP,
   onSwitchToPC,
-  onSwitchToMiniApp,
 }) => {
   const {
     route,
@@ -83,9 +84,9 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
     }
   }, [activeConversationId]);
 
-  // 跨端同频事件监听
+  // 跨端同频事件监听 (小程序端同步接收来自 PC端 / APP端 的消息与更新)
   useEffect(() => {
-    const unsubMsg = syncBridge.subscribe('message:app', (incoming: CrossTerminalMessage) => {
+    const unsubMsg = syncBridge.subscribe('message:miniapp', (incoming: CrossTerminalMessage) => {
       const targetConvId = incoming.targetSessionId;
       const newAppMsg: ChatMessage = {
         id: incoming.id,
@@ -125,7 +126,7 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
       );
     });
 
-    const unsubRevoke = syncBridge.subscribe('revoke:app', ({ sessionId, messageId }) => {
+    const unsubRevoke = syncBridge.subscribe('revoke:miniapp', ({ sessionId, messageId }) => {
       setMessagesMap((prev) => ({
         ...prev,
         [sessionId]: (prev[sessionId] || []).map((m) =>
@@ -141,32 +142,22 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
       }));
     });
 
-    const unsubGroup = syncBridge.subscribe('group_update:app', ({ sessionId, updates }) => {
+    const unsubGroup = syncBridge.subscribe('group_update:miniapp', ({ sessionId, updates }) => {
       setConversations((prev) =>
-        prev.map((c) =>
-          c.id === sessionId
-            ? {
-                ...c,
-                ...(updates.name ? { name: updates.name } : {}),
-                ...(updates.announcement ? { announcement: updates.announcement } : {}),
-                ...(typeof updates.isClosed === 'boolean' ? { isClosed: updates.isClosed } : {}),
-                ...(typeof updates.isMuted === 'boolean' ? { isMuted: updates.isMuted } : {}),
-              }
-            : c
-        )
+        prev.map((c) => (c.id === sessionId ? { ...c, ...updates } : c))
       );
     });
 
-    const unsubDirective = syncBridge.subscribe('directive:app', (payload) => {
+    const unsubDirective = syncBridge.subscribe('directive:miniapp', (payload) => {
       setInstructions((prev) =>
-        prev.map((i) =>
-          i.id === payload.directiveId || i.code === payload.directiveId
+        prev.map((inst) =>
+          inst.id === payload.directiveId || inst.code === payload.directiveId
             ? {
-                ...i,
-                status: payload.status === 'completed' ? 'completed' : 'processing',
-                signedCount: Math.min(i.signedCount + 1, i.totalReceivers),
+                ...inst,
+                signedCount: Math.min(inst.signedCount + 1, inst.totalReceivers),
+                status: 'completed',
               }
-            : i
+            : inst
         )
       );
     });
@@ -179,38 +170,27 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
     };
   }, []);
 
-  const handleLoginSuccess = (phone: string) => {
-    setUser((prev) => ({ ...prev, phone }));
-    goToInstitution();
-  };
-
-  const handleSelectInstitution = (institution: Institution) => {
-    setUser((prev) => ({
-      ...prev,
-      institutionId: institution.id,
-      institutionName: institution.name,
-    }));
-    goToTab('messages');
-  };
-
-  const activeConversation = conversations.find((c) => c.id === activeConversationId);
-  const activeMessages = activeConversationId ? (messagesMap[activeConversationId] || []) : [];
-
-  // 消息发送 -> 委托 Presenter
+  // 消息收发控制 (标记来源为 miniapp)
   const handleSendMessage = (
     content: string, 
-    type: 'text' | 'image' | 'file' | 'instruction' | 'audio' = 'text', 
+    type: 'text' | 'image' | 'file' | 'instruction' | 'audio' = 'text',
     extra?: any
   ) => {
     if (!activeConversationId) return;
 
-    chatPresenter.sendMessage('app', activeConversationId, content, type, {
-      audioDuration: extra?.audioDuration,
-      imageUrl: extra?.imageUrl,
-    });
+    chatPresenter.sendMessage(
+      'miniapp',
+      activeConversationId,
+      content,
+      type,
+      extra
+    );
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg_mp_${Date.now()}`,
       conversationId: activeConversationId,
       senderId: user.id,
       senderName: `${user.name} (我)`,
@@ -218,9 +198,15 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
       isSelf: true,
       content,
       type,
-      timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      audioDuration: extra?.audioDuration,
+      imageUrl: extra?.imageUrl,
+      fileInfo: extra?.fileInfo,
+      quoteMessage: extra?.quoteData ? {
+        senderName: extra.quoteData.senderName || '',
+        content: extra.quoteData.content || '',
+      } : undefined,
+      timestamp: timeStr,
       unreadMembersCount: activeConversation?.isGroup ? 4 : 1,
-      ...extra,
     };
 
     setMessagesMap((prev) => ({
@@ -233,32 +219,25 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
         c.id === activeConversationId
           ? {
               ...c,
-              draft: '',
               lastMessage: type === 'image' 
                 ? '[图片]' 
                 : type === 'audio' 
-                ? `[语音] ${extra?.audioDuration || 3}"`
+                ? `[语音 ${extra?.audioDuration || 5}"]` 
                 : content,
-              lastSender: `${user.name}`,
-              lastTime: newMsg.timestamp,
+              lastSender: user.name,
+              lastTime: timeStr,
+              draft: '',
             }
           : c
       )
     );
   };
 
-  // 草稿保存 -> 委托 Presenter
-  const handleSaveDraft = (convId: string, draft: string) => {
-    chatPresenter.saveDraft('app', convId, draft);
-    setConversations((prev) =>
-      prev.map((c) => (c.id === convId ? { ...c, draft } : c))
-    );
-  };
-
-  // 消息撤回 -> 委托 Presenter
   const handleRevokeMessage = (messageId: string) => {
     if (!activeConversationId) return;
-    chatPresenter.recallMessage('app', activeConversationId, messageId);
+
+    chatPresenter.recallMessage('miniapp', activeConversationId, messageId);
+
     setMessagesMap((prev) => ({
       ...prev,
       [activeConversationId]: (prev[activeConversationId] || []).map((m) =>
@@ -274,78 +253,100 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
     }));
   };
 
-  // 群组管理 -> 委托 Presenter
+  const handleSaveDraft = (convId: string, draft: string) => {
+    chatPresenter.saveDraft('miniapp', convId, draft);
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convId ? { ...c, draft: draft.trim() ? draft : undefined } : c))
+    );
+  };
+
+  const handleSignInstruction = (instructionId: string) => {
+    taskPresenter.signInstruction('miniapp', instructionId, user.name);
+
+    setInstructions((prev) =>
+      prev.map((inst) =>
+        inst.id === instructionId
+          ? {
+              ...inst,
+              signedCount: Math.min(inst.signedCount + 1, inst.totalReceivers),
+              status: 'completed',
+            }
+          : inst
+      )
+    );
+
+    if (activeConversationId) {
+      handleSendMessage(`【小程序实名签署完成】指令《${instructionId}》已成功签收并同步归档至加密账本。`, 'text');
+    }
+  };
+
   const handleUpdateGroup = (updates: Partial<ChatConversation>) => {
     if (!activeConversationId) return;
-    if (updates.name) groupPresenter.updateGroupName('app', activeConversationId, updates.name);
-    if (updates.announcement) groupPresenter.updateAnnouncement('app', activeConversationId, updates.announcement);
+
+    if (updates.name) {
+      groupPresenter.updateGroupName('miniapp', activeConversationId, updates.name);
+    }
+    if (updates.announcement) {
+      groupPresenter.updateAnnouncement('miniapp', activeConversationId, updates.announcement);
+    }
 
     setConversations((prev) =>
       prev.map((c) => (c.id === activeConversationId ? { ...c, ...updates } : c))
     );
   };
 
-  const handleCloseGroup = (convId: string) => {
-    groupPresenter.toggleGroupStatus('app', convId);
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === convId
-          ? {
-              ...c,
-              isClosed: true,
-              lastMessage: '【系统提示】该群组已关闭，已转为只读归档状态。',
-              lastTime: '刚刚',
-            }
-          : c
-      )
-    );
-    goToChat(convId);
-  };
-
   const handleDisbandGroup = (convId: string) => {
-    groupPresenter.disbandGroup('app', convId);
+    groupPresenter.disbandGroup('miniapp', convId);
     setConversations((prev) => prev.filter((c) => c.id !== convId));
     goBackToMessages();
   };
 
-  // 指令签署 -> 委托 Presenter
-  const handleSignInstruction = (instructionId: string) => {
-    taskPresenter.signInstruction('app', instructionId, user.name);
-    setInstructions((prev) =>
-      prev.map((i) =>
-        i.id === instructionId
-          ? {
-              ...i,
-              status: 'processing',
-              signedCount: Math.min(i.signedCount + 1, i.totalReceivers),
-            }
-          : i
-      )
+  const handleCloseGroup = (convId: string) => {
+    groupPresenter.toggleGroupStatus('miniapp', convId);
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convId ? { ...c, isClosed: !c.isClosed } : c))
     );
   };
 
-  const totalGroupUnread = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
-  const totalUnreadMessages = totalGroupUnread + tasksUnreadCount + instructionsUnreadCount;
-  const totalPendingTasks = tasks.filter((t) => t.status !== 'completed').length;
+  const handleSelectInstitution = (inst: Institution) => {
+    setUser((prev) => ({
+      ...prev,
+      institutionId: inst.id,
+      institutionName: inst.name,
+    }));
+    goToTab('messages');
+  };
+
+  const activeConversation = conversations.find((c) => c.id === activeConversationId);
+  const activeMessages = activeConversationId ? messagesMap[activeConversationId] || [] : [];
+  const totalUnreadMessages = conversations.reduce((acc, cur) => acc + (cur.unreadCount || 0), 0);
+  const totalPendingTasks = tasks.filter((t) => t.status === 'pending').length;
 
   return (
-    <IPhone15ProMaxContainer
+    <MiniProgramContainer
       onBackToPortal={onBackToPortal}
+      onSwitchToAPP={onSwitchToAPP}
       onSwitchToPC={onSwitchToPC}
-      onSwitchToMiniApp={onSwitchToMiniApp}
+      onRestart={() => {
+        goBackToMessages();
+        goToTab('messages');
+      }}
     >
-      <div className="w-full h-full flex flex-col relative overflow-hidden bg-[#F8F9FA] text-slate-900 font-sans">
+      {/* 
+        Container with [&_header]:pr-[96px] 
+        Ensures screen headers gracefully reserve 96px for the WeChat top-right capsule button
+      */}
+      <div className="w-full h-full relative overflow-hidden flex flex-col [&_header]:pr-[96px]">
         <AnimatePresence mode="wait">
           {screen === 'login' && (
             <motion.div
               key="login"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.25 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="w-full h-full"
             >
-              <LoginScreen onLoginSuccess={handleLoginSuccess} />
+              <LoginScreen onLoginSuccess={() => goToTab('messages')} />
             </motion.div>
           )}
 
@@ -381,7 +382,7 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
                     onBack={() => activeConversationId ? goToChat(activeConversationId) : goBackToMessages()}
                     onUpdateGroup={handleUpdateGroup}
                     onExitGroup={(convId) => {
-                      groupPresenter.exitGroup('app', convId);
+                      groupPresenter.exitGroup('miniapp', convId);
                       setConversations((prev) => prev.filter((c) => c.id !== convId));
                       goBackToMessages();
                     }}
@@ -427,7 +428,7 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
                   {currentTab === 'contacts' && (
                     <MobileContactsTab
                       onNavigateToChat={(sessionId) => goToChat(sessionId)}
-                      isMiniApp={false}
+                      isMiniApp={true}
                     />
                   )}
 
@@ -472,7 +473,8 @@ export const MobileMainView: React.FC<MobileMainViewProps> = ({
           />
         )}
       </div>
-    </IPhone15ProMaxContainer>
+    </MiniProgramContainer>
   );
 };
-export default MobileMainView;
+
+export default MiniAppMainView;

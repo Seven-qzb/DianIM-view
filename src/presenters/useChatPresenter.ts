@@ -8,14 +8,14 @@
 import { useCallback } from 'react';
 import { unifiedStore } from '../models/stores/UnifiedStore';
 import { ChatMessage, TaskDirective } from '../models/entities/chat';
-import { syncBridge } from '../services/terminalSyncBridge';
+import { syncBridge, TerminalSource } from '../services/terminalSyncBridge';
 import { soundService } from '../services/audioService';
 
 export function useChatPresenter() {
   // 1. 发送消息业务逻辑
   const sendMessage = useCallback(
     (
-      source: 'pc' | 'app',
+      source: TerminalSource,
       sessionId: string,
       content: string,
       type: 'text' | 'image' | 'file' | 'instruction' | 'audio' | 'directive' | 'push_card' = 'text',
@@ -38,7 +38,7 @@ export function useChatPresenter() {
         sessionId,
         conversationId: sessionId,
         senderId: user.id,
-        senderName: source === 'app' ? `${user.name} (我)` : user.name,
+        senderName: source !== 'pc' ? `${user.name} (我)` : user.name,
         senderAvatar: user.avatar,
         isSelf: true,
         type: type === 'push_card' ? 'text' : type,
@@ -107,7 +107,7 @@ export function useChatPresenter() {
 
   // 2. 撤回消息业务逻辑
   const recallMessage = useCallback(
-    (source: 'pc' | 'app', sessionId: string, messageId: string) => {
+    (source: TerminalSource, sessionId: string, messageId: string) => {
       unifiedStore.setState((prev) => {
         const currentList = prev.messagesMap[sessionId] || [];
         const updatedList = currentList.map((m) => {
@@ -152,7 +152,7 @@ export function useChatPresenter() {
   );
 
   // 3. 草稿保存逻辑
-  const saveDraft = useCallback((source: 'pc' | 'app', sessionId: string, draft: string) => {
+  const saveDraft = useCallback((source: TerminalSource, sessionId: string, draft: string) => {
     const cleanDraft = draft.trim() ? draft : undefined;
     unifiedStore.setState((prev) => ({
       sessions: prev.sessions.map((s) => (s.id === sessionId ? { ...s, draft: cleanDraft } : s)),

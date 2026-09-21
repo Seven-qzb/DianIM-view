@@ -10,16 +10,18 @@ import React, { useState, useEffect } from 'react';
 import { PortalView } from './views/portal/PortalView';
 import { PCMainView } from './views/pc/PCMainView';
 import { MobileMainView } from './views/mobile/MobileMainView';
+import { MiniAppMainView } from './views/miniapp/MiniAppMainView';
 import { ChatProvider } from './context/ChatContext';
 import { useHashRouter } from './router/useHashRouter';
 
 export default function App() {
   const router = useHashRouter('session_rd_dept');
-  const [terminal, setTerminal] = useState<'portal' | 'pc' | 'app'>(() => {
+  const [terminal, setTerminal] = useState<'portal' | 'pc' | 'app' | 'miniapp'>(() => {
     if (typeof window === 'undefined') return 'portal';
     const hash = window.location.hash.toLowerCase();
+    if (hash.includes('miniapp') || hash.includes('mp')) return 'miniapp';
     if (hash.includes('app') && !hash.includes('portal')) return 'app';
-    if (hash.includes('messages') || hash.includes('services') || hash.includes('settings') || hash.includes('pc')) {
+    if (hash.includes('messages') || hash.includes('contacts') || hash.includes('services') || hash.includes('settings') || hash.includes('pc')) {
       return 'pc';
     }
     return 'portal';
@@ -30,9 +32,11 @@ export default function App() {
       const hash = window.location.hash.toLowerCase();
       if (hash.includes('portal') || hash === '' || hash === '#/') {
         setTerminal('portal');
+      } else if (hash.includes('miniapp') || hash.includes('mp')) {
+        setTerminal('miniapp');
       } else if (hash.includes('app') && !hash.includes('portal')) {
         setTerminal('app');
-      } else if (hash.includes('messages') || hash.includes('services') || hash.includes('settings') || hash.includes('pc')) {
+      } else if (hash.includes('messages') || hash.includes('contacts') || hash.includes('services') || hash.includes('settings') || hash.includes('pc')) {
         setTerminal('pc');
       }
     };
@@ -40,13 +44,16 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
 
-  const handleSelectTerminal = (t: 'pc' | 'app') => {
+  const handleSelectTerminal = (t: 'pc' | 'app' | 'miniapp') => {
     if (t === 'pc') {
       setTerminal('pc');
       window.location.hash = '#/messages';
     } else if (t === 'app') {
       setTerminal('app');
       window.location.hash = '#/app';
+    } else if (t === 'miniapp') {
+      setTerminal('miniapp');
+      window.location.hash = '#/miniapp';
     }
   };
 
@@ -59,15 +66,24 @@ export default function App() {
     <ChatProvider activeSessionId={router.activeSessionId}>
       {terminal === 'portal' ? (
         <PortalView onSelectTerminal={handleSelectTerminal} />
+      ) : terminal === 'miniapp' ? (
+        <MiniAppMainView
+          onBackToPortal={handleBackToPortal}
+          onSwitchToAPP={() => handleSelectTerminal('app')}
+          onSwitchToPC={() => handleSelectTerminal('pc')}
+        />
       ) : terminal === 'app' ? (
         <MobileMainView
           onBackToPortal={handleBackToPortal}
           onSwitchToPC={() => handleSelectTerminal('pc')}
+          onSwitchToMiniApp={() => handleSelectTerminal('miniapp')}
         />
       ) : (
         <PCMainView
           router={router}
           onBackToPortal={handleBackToPortal}
+          onSwitchToMiniApp={() => handleSelectTerminal('miniapp')}
+          onSwitchToAPP={() => handleSelectTerminal('app')}
         />
       )}
     </ChatProvider>

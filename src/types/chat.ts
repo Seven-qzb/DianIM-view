@@ -169,5 +169,5 @@ export interface ChatSession {
   directives?: TaskDirective[];
 }
 
-export type MainNavTab = 'messages' | 'services' | 'settings';
+export type MainNavTab = 'messages' | 'contacts' | 'services' | 'settings';
 export type FilterTab = 'all' | 'unread' | 'read' | 'task' | 'tasks' | 'pinned' | 'hidden' | 'not_displayed' | 'at_me' | 'group' | 'direct';

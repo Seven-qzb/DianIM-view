@@ -6,11 +6,12 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Smartphone } from 'lucide-react';
 import { NavigationSidebar } from '../../components/NavigationSidebar';
 import { ConversationList } from '../../components/ConversationList';
 import { ChatArea } from '../../components/ChatArea';
 import { GroupInfoDrawer } from '../../components/GroupInfoDrawer';
+import { PCContactsView } from '../../components/PCContactsView';
 import { ServicesView } from '../../components/ServicesView';
 import { SettingsView } from '../../components/SettingsView';
 import { useChat } from '../../context/ChatContext';
@@ -20,11 +21,15 @@ import { TaskDirective, UserMember } from '../../types/chat';
 export interface PCMainViewProps {
   router: ReturnType<typeof useHashRouter>;
   onBackToPortal?: () => void;
+  onSwitchToAPP?: () => void;
+  onSwitchToMiniApp?: () => void;
 }
 
 export const PCMainView: React.FC<PCMainViewProps> = ({
   router,
   onBackToPortal,
+  onSwitchToAPP,
+  onSwitchToMiniApp,
 }) => {
   const {
     activeTab,
@@ -193,6 +198,28 @@ export const PCMainView: React.FC<PCMainViewProps> = ({
             </button>
             <span className="text-slate-400">/</span>
             <span className="font-semibold text-slate-800">PC客户端工作台</span>
+            {onSwitchToMiniApp && (
+              <button
+                id="pc-top-btn-switch-miniapp"
+                type="button"
+                onClick={onSwitchToMiniApp}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-medium transition-colors border border-emerald-200"
+              >
+                <Smartphone className="w-3 h-3 text-emerald-600" />
+                <span>进入 小程序端</span>
+              </button>
+            )}
+            {onSwitchToAPP && (
+              <button
+                id="pc-top-btn-switch-app"
+                type="button"
+                onClick={onSwitchToAPP}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-800 text-[11px] font-medium transition-colors border border-blue-200"
+              >
+                <Smartphone className="w-3 h-3 text-blue-600" />
+                <span>进入 APP端</span>
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2 text-slate-600 text-[11px] font-medium">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -296,6 +323,15 @@ export const PCMainView: React.FC<PCMainViewProps> = ({
                 )}
               </AnimatePresence>
             </div>
+          </div>
+        ) : activeTab === 'contacts' ? (
+          <div className="flex-1 bg-white overflow-hidden flex">
+            <PCContactsView
+              onJumpToChat={(sessionId) => {
+                setSessionId(sessionId);
+                setTab('messages');
+              }}
+            />
           </div>
         ) : activeTab === 'services' ? (
           <div className="flex-1 bg-white overflow-hidden">

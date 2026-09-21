@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, Battery, ShieldCheck, ArrowLeft, Monitor } from 'lucide-react';
+import { Wifi, Battery, ShieldCheck, ArrowLeft, Monitor, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface IPhone15ProMaxContainerProps {
   children: React.ReactNode;
   onBackToPortal?: () => void;
   onSwitchToPC?: () => void;
+  onSwitchToMiniApp?: () => void;
 }
 
 export const IPhone15ProMaxContainer: React.FC<IPhone15ProMaxContainerProps> = ({
   children,
   onBackToPortal,
   onSwitchToPC,
+  onSwitchToMiniApp,
 }) => {
   const [currentTime, setCurrentTime] = useState('9:41');
   const [isDynamicIslandExpanded, setIsDynamicIslandExpanded] = useState(false);
@@ -80,6 +82,17 @@ export const IPhone15ProMaxContainer: React.FC<IPhone15ProMaxContainerProps> = (
               <span>返回多端门户</span>
             </button>
           )}
+          {onSwitchToMiniApp && (
+            <button
+              id="app-top-btn-switch-miniapp"
+              type="button"
+              onClick={onSwitchToMiniApp}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600/90 hover:bg-emerald-500 text-white shadow-md font-semibold cursor-pointer transition-colors border border-emerald-400/40"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>切换至 小程序端</span>
+            </button>
+          )}
           {onSwitchToPC && (
             <button
               id="app-top-btn-switch-pc"
@@ -88,7 +101,7 @@ export const IPhone15ProMaxContainer: React.FC<IPhone15ProMaxContainerProps> = (
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600/90 hover:bg-blue-500 text-white shadow-md font-semibold cursor-pointer transition-colors border border-blue-400/40"
             >
               <Monitor className="w-3.5 h-3.5" />
-              <span>切换至 PC工作台</span>
+              <span>PC工作台</span>
             </button>
           )}
         </div>
